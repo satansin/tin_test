@@ -1,6 +1,6 @@
 # tin_test
 
-Synthetic 3D TIN (triangular irregular network) generator. Both **CGAL** and **[TriMesh2](https://github.com/Forceflow/trimesh2)** are always compiled in; pick at runtime or in code. The original Python script uses [trimesh](https://github.com/mikedh/trimesh).
+Synthetic 3D TIN (triangular irregular network) generator. Each generated mesh is the convex hull of a random point set, with **exactly** the requested number of hull vertices. Both **CGAL** and **[TriMesh2](https://github.com/Forceflow/trimesh2)** backends are always compiled in; pick at runtime.
 
 ## Prerequisites
 
@@ -18,12 +18,6 @@ Clone TriMesh2 into the project:
 git clone https://github.com/Forceflow/trimesh2.git third_party/trimesh2
 ```
 
-### Python (optional)
-
-```bash
-pip install numpy trimesh
-```
-
 ## Build
 
 ```bash
@@ -33,44 +27,71 @@ cmake --build --preset debug
 
 Release: `cmake --preset release` / `cmake --build --preset release`.
 
-## Generators (API)
-
-| Function | Backend |
-|----------|---------|
-| `generate_random_tin()` | CGAL convex hull (default in CLI) |
-| `generate_random_tin_trimesh()` | TriMesh2 + Qhull convex hull |
-
-Both live in `include/tin_gen/generator.hpp` and are implemented in `src/backends/`.
-
-## Configuration
-
-Defaults in `AppConfig` (`include/tin_gen/config.hpp`):
-
-| Field | Default |
-|-------|---------|
-| backend | `cgal` |
-| format | `ply` |
-| num_objects | `5` |
-| num_vertices_per_object | `50` |
-| scale | `10.0` |
-| output_dir | `output` |
-| random_seed | `0` (non-zero = fixed seed) |
-
 ## Run
 
+The executable is `tin_test`. Running it with no arguments prints usage.
+
 ```bash
-./build/debug/tin_test
-./build/debug/tin_test generate --backend trimesh2
-./build/debug/tin_test --format obj --seed 42
+./build/debug/tin_test                                       # prints usage
+./build/debug/tin_test generate                              # use defaults
+./build/debug/tin_test generate --backend trimesh2 --seed 42
+./build/debug/tin_test generate --format obj --num-objects 5
 ./build/debug/tin_test help
 ```
 
-Output: `output/object_1.ply` (or `.obj`). Prints backend and `generate_random_tin` CPU time.
+### Commands
 
-### Python
+| Command | Description |
+|---------|-------------|
+| `generate` | Build random TIN meshes and write files |
+| `help` | Show usage |
+
+### Generate options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--backend NAME` | `cgal` | `cgal` or `trimesh2` |
+| `--format FORMAT` | `ply` | `ply` or `obj` |
+| `-o, --output-dir DIR` | `output` | Output directory |
+| `--num-objects N` | `10` | Number of meshes to generate |
+| `--num-vertices-per-object N` | `200` | **Exact** hull vertex count per mesh |
+| `--scale VALUE` | `1.0` | Coordinate scale for random points |
+| `--seed N` | `0` | RNG seed (`0` = random) |
+
+Output files: `<output-dir>/object_1.ply`, `object_2.ply`, … (or `.obj`). The command prints the backend, CPU time, wall time, and mesh stats.
+
+## Generators (C++ API)
+
+| Function | Backend |
+|----------|---------|
+| `generate_random_tin()` | CGAL convex hull |
+| `generate_random_tin_trimesh()` | TriMesh2 + Qhull convex hull |
+
+Both live in `include/tin_gen/generator.hpp` and produce convex hulls with **exactly** `num_vertices_per_object` vertices. The shared point-generation logic lives in `src/convex_hull_vertices.cpp`: it grows the point set (adding exterior support points) and prunes it (removing random hull-input points) until the hull has the target vertex count.
+
+> Note: Uniform random points in a 3D box have only about `N^(2/3)` points on the convex hull, so the iterative adjustment is needed for an exact count and scales worse than a single hull computation at large `N`.
+
+## Synthetic datasets script
+
+`scripts/generate_synthetic_datasets.sh` creates three datasets under `output_synthetic/`:
+
+| Folder | Objects | Vertices/object |
+|--------|---------|-----------------|
+| `objects100_vertices200` | 100 | 200 |
+| `objects1000_vertices200` | 1000 | 200 |
+| `objects100_vertices500` | 100 | 500 |
+
+Run:
 
 ```bash
-python gen_syn_tin.py
+./scripts/generate_synthetic_datasets.sh
+```
+
+Use a release build for speed:
+
+```bash
+cmake --preset release && cmake --build --preset release
+TIN_TEST_BIN=build/release/tin_test ./scripts/generate_synthetic_datasets.sh
 ```
 
 ## Tests
@@ -82,10 +103,16 @@ ctest --preset debug
 ## Project layout
 
 ```text
-include/tin_gen/
+include/tin_gen/                     # public headers (config, app, generator, …)
+src/main.cpp                         # parses args, dispatches commands
+src/app.cpp                          # command parsing + dispatch
+src/commands/generate.cpp            # generate command (timing, save, stats)
 src/backends/generator_cgal.cpp      # generate_random_tin()
 src/backends/generator_trimesh2.cpp  # generate_random_tin_trimesh()
-src/convex_hull_3d.cpp               # Qhull (used by TriMesh2 path)
+src/convex_hull_vertices.cpp         # exact-vertex-count point generator
+src/convex_hull_3d.cpp               # Qhull wrapper (used by TriMesh2 path)
+src/cpu_timer.cpp                    # CPU + wall-clock timers
+scripts/generate_synthetic_datasets.sh
 cmake/trimesh2/
-third_party/trimesh2/
+third_party/trimesh2/                # cloned separately
 ```
