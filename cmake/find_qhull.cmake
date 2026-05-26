@@ -1,4 +1,4 @@
-# Always build Qhull from source under third_party/qhull (never use a system install).
+# Fetch Qhull sources into third_party/qhull, then build only qhullstatic_r + qhullcpp.
 include(FetchContent)
 
 set(TIN_QHULL_SOURCE_DIR "${CMAKE_SOURCE_DIR}/third_party/qhull")
@@ -11,22 +11,23 @@ FetchContent_Declare(
   UPDATE_DISCONNECTED TRUE
 )
 
-message(STATUS "Fetching/building Qhull in ${TIN_QHULL_SOURCE_DIR}")
-FetchContent_MakeAvailable(qhull)
-
-if(NOT TARGET qhullstatic_r)
-  message(FATAL_ERROR "Qhull fetch succeeded but target 'qhullstatic_r' was not created.")
-endif()
-if(NOT TARGET qhullcpp)
-  message(FATAL_ERROR "Qhull fetch succeeded but target 'qhullcpp' was not created.")
+message(STATUS "Fetching Qhull sources into ${TIN_QHULL_SOURCE_DIR}")
+FetchContent_GetProperties(qhull)
+if(NOT qhull_POPULATED)
+  FetchContent_Populate(qhull)
 endif()
 
-if(NOT TARGET Qhull::qhullstatic_r)
-  add_library(Qhull::qhullstatic_r ALIAS qhullstatic_r)
-endif()
-if(NOT TARGET Qhull::qhullcpp)
-  add_library(Qhull::qhullcpp ALIAS qhullcpp)
+if(NOT EXISTS "${TIN_QHULL_SOURCE_DIR}/src/libqhullcpp/Qhull.h")
+  message(FATAL_ERROR "Qhull sources missing at ${TIN_QHULL_SOURCE_DIR}")
 endif()
 
-# Headers are included as <libqhullcpp/...> relative to src/.
+enable_language(C)
+
+set(QHULL_ROOT "${TIN_QHULL_SOURCE_DIR}")
+add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/qhull_vendor" "${CMAKE_BINARY_DIR}/qhull-vendor")
+
+if(NOT TARGET qhullstatic_r OR NOT TARGET qhullcpp)
+  message(FATAL_ERROR "Qhull vendor libraries were not created.")
+endif()
+
 set(TIN_QHULL_INCLUDE_DIR "${TIN_QHULL_SOURCE_DIR}/src" CACHE INTERNAL "")

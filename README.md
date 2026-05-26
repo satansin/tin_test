@@ -155,7 +155,7 @@ Eight datasets: object counts **100, 1000, 10000, 100000** × hull vertices **20
 ctest --preset debug -R tin_test_smoke
 ```
 
-Qhull’s own tests are also registered when it is vendored; the command above runs only this project’s smoke test.
+Only `tin_test` tests are registered (Qhull is built as two static libraries, not its full app/test suite).
 
 ## Project layout
 
@@ -168,7 +168,8 @@ src/backends/generator.cpp       # TriMesh2 + Qhull generation
 src/convex_hull_vertices.cpp     # exact vertex-count point set
 src/convex_hull_3d.cpp           # Qhull hull mesh
 cmake/fetch_trimesh2.cmake       # FetchContent → third_party/trimesh2
-cmake/find_qhull.cmake           # FetchContent → third_party/qhull
+cmake/find_qhull.cmake           # fetch sources → third_party/qhull
+cmake/qhull_vendor/              # build qhullstatic_r + qhullcpp only
 cmake/trimesh2/                  # static TriMesh2 library target
 scripts/generate_synthetic_datasets.sh
 third_party/trimesh2/            # created at configure (gitignored)
@@ -184,3 +185,4 @@ third_party/qhull/               # created at configure (gitignored)
 | `TriMesh.h` / `libqhullcpp/...` not found | Run `cmake` from a clean build dir so fetch scripts run |
 | Git fetch fails on server | Copy `third_party/trimesh2` and `third_party/qhull` from another machine |
 | Very slow generation | Use `Release` build; large `--num-vertices-per-object` triggers many hull passes |
+| `Nonrepresentable section on output` linking Qhull | Pull latest CMake: only Qhull **libraries** are built (not `user_eg3` / CLI tools) |
