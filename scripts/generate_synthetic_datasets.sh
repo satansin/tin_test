@@ -6,7 +6,8 @@
 #   ./scripts/generate_synthetic_datasets.sh full     # large preset (server)
 #
 # Environment:
-#   TIN_TEST_BIN  Path to tin_test (default: build/debug/tin_test)
+#   TIN_TEST_BIN  Path to tin_test (default: build/release, else build/debug)
+#   LOG_FILE      If set, write stdout/stderr to this file (and still print to terminal)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -29,12 +30,21 @@ Modes:
 
 Environment:
   TIN_TEST_BIN   tin_test executable (default: build/release, else build/debug)
+  LOG_FILE       Log path (e.g. output_synthetic/generation.log)
 
 See README.md for estimated disk usage.
 EOF
 }
 
 mkdir -p "${OUT_ROOT}"
+
+if [[ -n "${LOG_FILE:-}" ]]; then
+  log_dir="$(dirname "${LOG_FILE}")"
+  if [[ "${log_dir}" != "." ]]; then
+    mkdir -p "${log_dir}"
+  fi
+  exec > >(tee "${LOG_FILE}") 2>&1
+fi
 
 if [[ ! -x "${TIN_TEST}" ]]; then
   echo "error: tin_test not found at ${TIN_TEST}" >&2

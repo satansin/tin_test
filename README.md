@@ -103,54 +103,47 @@ Output: `<output-dir>/object_1.ply`, `object_2.ply`, … The command prints CPU 
 
 ### Save output to a log file
 
-Use `2>&1` so stderr is included. Use `tee` to see output on the terminal **and** write a file.
-
-**Single generate run** (print + save):
+**Recommended — dataset script** (works on all shells, including csh/tcsh):
 
 ```bash
-./build/release/tin_test generate --num-objects 10 --seed 42 2>&1 | tee run.log
+LOG_FILE=output_synthetic/generation.log ./scripts/generate_synthetic_datasets.sh
 ```
 
-**Single generate run** (file only):
+Full preset:
 
 ```bash
-./build/release/tin_test generate --num-objects 10 --seed 42 > run.log 2>&1
+LOG_FILE=output_synthetic/generation_full.log ./scripts/generate_synthetic_datasets.sh full
 ```
 
-**Dataset script** (small preset):
+Timestamped log:
 
 ```bash
-mkdir -p output_synthetic
-./scripts/generate_synthetic_datasets.sh 2>&1 | tee output_synthetic/generation.log
+LOG_FILE="output_synthetic/run_$(date +%Y%m%d_%H%M%S).log" ./scripts/generate_synthetic_datasets.sh
 ```
 
-**Dataset script** (full preset, long run):
+**Single `tin_test` run** — use `bash` if `2>&1 | tee` gives *Ambiguous output redirect* (common with csh/tcsh login shells):
 
 ```bash
-mkdir -p output_synthetic
-./scripts/generate_synthetic_datasets.sh full 2>&1 | tee output_synthetic/generation_full.log
+bash -c './build/release/tin_test generate --num-objects 10 --seed 42 2>&1 | tee run.log'
 ```
 
-**Timestamped log** (handy on servers):
+File only (no terminal output):
 
 ```bash
-mkdir -p output_synthetic
-LOG="output_synthetic/run_$(date +%Y%m%d_%H%M%S).log"
-./scripts/generate_synthetic_datasets.sh 2>&1 | tee "$LOG"
+bash -c './build/release/tin_test generate --num-objects 10 --seed 42 > run.log 2>&1'
 ```
 
 **Build log:**
 
 ```bash
-cmake --build build/release -j 2>&1 | tee build.log
+bash -c 'cmake --build build/release -j 2>&1 | tee build.log'
 ```
 
-| Syntax | Meaning |
-|--------|---------|
-| `> file.txt` | Write stdout to file (overwrite) |
-| `2>&1` | Include stderr in the same stream |
-| `>> file.txt` | Append instead of overwrite |
-| `tee file.txt` | Show on screen and save to file |
+| Method | When to use |
+|--------|-------------|
+| `LOG_FILE=... ./scripts/...` | Easiest; no shell redirect syntax |
+| `bash -c '... 2>&1 \| tee file'` | Manual logging; needs bash |
+| `> file 2>&1` | File only; run under `bash` on csh/tcsh systems |
 
 ## C++ API
 
@@ -179,7 +172,11 @@ Uses `build/release/tin_test` if present, otherwise `build/debug`. Override with
 TIN_TEST_BIN=build/release/tin_test ./scripts/generate_synthetic_datasets.sh
 ```
 
-To save a log while generating, see [Save output to a log file](#save-output-to-a-log-file) above.
+To save a log while generating:
+
+```bash
+LOG_FILE=output_synthetic/generation.log ./scripts/generate_synthetic_datasets.sh
+```
 
 ### Small preset (default)
 
@@ -239,3 +236,4 @@ third_party/qhull/               # created at configure (gitignored)
 | Git fetch fails on server | Copy `third_party/trimesh2` and `third_party/qhull` from another machine |
 | Very slow generation | Use `Release` build; large `--num-vertices-per-object` triggers many hull passes |
 | `Nonrepresentable section on output` linking Qhull | Pull latest CMake: only Qhull **libraries** are built (not `user_eg3` / CLI tools) |
+| `Ambiguous output redirect` with `tee` | Login shell is likely csh/tcsh — use `LOG_FILE=... ./scripts/...` or wrap in `bash -c '...'` |
