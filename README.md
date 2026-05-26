@@ -142,14 +142,16 @@ Eight datasets: object counts **100, 1000, 10000, 100000** × hull vertices **20
 
 Use these on **csh/tcsh** (and bash). Do **not** use `LOG_FILE=path ./script` or `2>&1 | tee` in csh — they fail with *Command not found* or *Ambiguous output redirect*.
 
-**Dataset runs** — `--log` writes to a file and still prints to the terminal:
+**Dataset runs** — log file only (nothing on screen):
 
 ```csh
-./scripts/generate_synthetic_datasets.sh --log output_synthetic/generation.log
-./scripts/generate_synthetic_datasets.sh --log output_synthetic/generation_full.log full
+./scripts/generate_synthetic_datasets.sh --log-only output_synthetic/generation.log
+./scripts/generate_synthetic_datasets.sh --log-only output_synthetic/generation_full.log full
 ```
 
-**Single command** — csh merges stdout and stderr with `>&` (output only in the log, not on screen):
+Same, but also print progress to the terminal: use `--log` instead of `--log-only`.
+
+**Single command** — csh merges stdout and stderr with `>&` (log only, no screen):
 
 ```csh
 ./build/release/tin_test generate --num-objects 10 --seed 42 >& run.log

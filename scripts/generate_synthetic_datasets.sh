@@ -7,7 +7,8 @@
 # Modes: (default) small | full
 #
 # Options:
-#   --log PATH, -l PATH   Write stdout/stderr to PATH (and print to terminal)
+#   --log PATH, -l PATH       Log to PATH (screen + file)
+#   --log-only PATH           Log to PATH only (no screen output)
 #
 # Environment (bash/sh only):
 #   TIN_TEST_BIN  Path to tin_test (default: build/release, else build/debug)
@@ -33,17 +34,18 @@ Modes:
   full     Large preset: 8 datasets (100–100000 objects × 200/500 vertices)
 
 Options:
-  --log PATH, -l PATH   Log to PATH (screen + file)
+  --log PATH, -l PATH       Log to PATH (screen + file)
+  --log-only PATH           Log to PATH only (no screen output)
 
 Environment (bash/sh):
   TIN_TEST_BIN   tin_test executable
   LOG_FILE       Same as --log
 
 Examples:
-  ./scripts/generate_synthetic_datasets.sh --log output_synthetic/generation.log
-  ./scripts/generate_synthetic_datasets.sh --log output_synthetic/full.log full
+  ./scripts/generate_synthetic_datasets.sh --log-only output_synthetic/generation.log
+  ./scripts/generate_synthetic_datasets.sh --log-only output_synthetic/full.log full
 
-On csh/tcsh, use --log (not LOG_FILE=... ./script).
+On csh/tcsh, use these flags (not LOG_FILE=... ./script).
 
 See README.md for disk usage estimates.
 EOF
@@ -62,6 +64,16 @@ while [[ $# -gt 0 ]]; do
         exit 1
       fi
       LOG_FILE="$2"
+      LOG_TEE=1
+      shift 2
+      ;;
+    --log-only)
+      if [[ $# -lt 2 ]]; then
+        echo "error: missing path after $1" >&2
+        exit 1
+      fi
+      LOG_FILE="$2"
+      LOG_TEE=0
       shift 2
       ;;
     full | small)
@@ -83,7 +95,11 @@ if [[ -n "${LOG_FILE:-}" ]]; then
   if [[ "${log_dir}" != "." ]]; then
     mkdir -p "${log_dir}"
   fi
-  exec > >(tee "${LOG_FILE}") 2>&1
+  if [[ "${LOG_TEE:-1}" == 1 ]]; then
+    exec > >(tee "${LOG_FILE}") 2>&1
+  else
+    exec >"${LOG_FILE}" 2>&1
+  fi
 fi
 
 if [[ ! -x "${TIN_TEST}" ]]; then
