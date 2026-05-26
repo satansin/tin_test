@@ -101,81 +101,15 @@ No arguments prints usage.
 
 Output: `<output-dir>/object_1.ply`, `object_2.ply`, … The command prints CPU time, wall time, and mesh stats.
 
-### Save output to a log file
-
-**Recommended — dataset script** (works on all shells, including csh/tcsh):
-
-```bash
-LOG_FILE=output_synthetic/generation.log ./scripts/generate_synthetic_datasets.sh
-```
-
-Full preset:
-
-```bash
-LOG_FILE=output_synthetic/generation_full.log ./scripts/generate_synthetic_datasets.sh full
-```
-
-Timestamped log:
-
-```bash
-LOG_FILE="output_synthetic/run_$(date +%Y%m%d_%H%M%S).log" ./scripts/generate_synthetic_datasets.sh
-```
-
-**Single `tin_test` run** — use `bash` if `2>&1 | tee` gives *Ambiguous output redirect* (common with csh/tcsh login shells):
-
-```bash
-bash -c './build/release/tin_test generate --num-objects 10 --seed 42 2>&1 | tee run.log'
-```
-
-File only (no terminal output):
-
-```bash
-bash -c './build/release/tin_test generate --num-objects 10 --seed 42 > run.log 2>&1'
-```
-
-**Build log:**
-
-```bash
-bash -c 'cmake --build build/release -j 2>&1 | tee build.log'
-```
-
-| Method | When to use |
-|--------|-------------|
-| `LOG_FILE=... ./scripts/...` | Easiest; no shell redirect syntax |
-| `bash -c '... 2>&1 \| tee file'` | Manual logging; needs bash |
-| `> file 2>&1` | File only; run under `bash` on csh/tcsh systems |
-
-## C++ API
-
-```cpp
-#include "tin_gen/generator.hpp"
-
-auto meshes = tin_gen::generate_random_tin(
-    num_objects, num_vertices_per_object, scale, seed);
-tin_gen::save_objects_as_files(meshes, output_dir, tin_gen::MeshFormat::Ply);
-```
-
-Exact hull vertex counts use `src/convex_hull_vertices.cpp` (grow/prune point set, Qhull for hull geometry, TriMesh2 to orient and validate).
-
-> Uniform random points in a 3D box yield only ~`N^(2/3)` hull vertices, so iterative adjustment is used for an exact count. Large `N` is slower than a single hull pass.
-
 ## Synthetic datasets script
+
+`scripts/generate_synthetic_datasets.sh` writes PLY meshes under `output_synthetic/`. It uses `build/release/tin_test` if present, otherwise `build/debug`.
 
 ```bash
 ./scripts/generate_synthetic_datasets.sh          # small preset (~15 MB)
 ./scripts/generate_synthetic_datasets.sh full     # large preset (~4.2 GB, hours)
-```
 
-Uses `build/release/tin_test` if present, otherwise `build/debug`. Override with:
-
-```bash
 TIN_TEST_BIN=build/release/tin_test ./scripts/generate_synthetic_datasets.sh
-```
-
-To save a log while generating:
-
-```bash
-LOG_FILE=output_synthetic/generation.log ./scripts/generate_synthetic_datasets.sh
 ```
 
 ### Small preset (default)
@@ -198,6 +132,37 @@ Eight datasets: object counts **100, 1000, 10000, 100000** × hull vertices **20
 | 100,000 | ~1.1 GB | ~2.7 GB | ~3.8 GB |
 
 **Total ~4.2 GB** (ASCII PLY, ~11 KB/mesh @ 200 v, ~27 KB @ 500 v).
+
+## Logging
+
+**Dataset runs** — set `LOG_FILE` (works on all shells, including csh/tcsh):
+
+```bash
+LOG_FILE=output_synthetic/generation.log ./scripts/generate_synthetic_datasets.sh
+LOG_FILE=output_synthetic/generation_full.log ./scripts/generate_synthetic_datasets.sh full
+LOG_FILE="output_synthetic/run_$(date +%Y%m%d_%H%M%S).log" ./scripts/generate_synthetic_datasets.sh
+```
+
+**Single `tin_test` or build** — if `2>&1 | tee` fails with *Ambiguous output redirect*, wrap in `bash`:
+
+```bash
+bash -c './build/release/tin_test generate --num-objects 10 --seed 42 2>&1 | tee run.log'
+bash -c 'cmake --build build/release -j 2>&1 | tee build.log'
+```
+
+## C++ API
+
+```cpp
+#include "tin_gen/generator.hpp"
+
+auto meshes = tin_gen::generate_random_tin(
+    num_objects, num_vertices_per_object, scale, seed);
+tin_gen::save_objects_as_files(meshes, output_dir, tin_gen::MeshFormat::Ply);
+```
+
+Exact hull vertex counts use `src/convex_hull_vertices.cpp` (grow/prune point set, Qhull for hull geometry, TriMesh2 to orient and validate).
+
+> Uniform random points in a 3D box yield only ~`N^(2/3)` hull vertices, so iterative adjustment is used for an exact count. Large `N` is slower than a single hull pass.
 
 ## Tests
 
