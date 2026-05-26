@@ -2,12 +2,16 @@
 # Generate synthetic TIN datasets under output_synthetic/.
 #
 # Usage:
-#   ./scripts/generate_synthetic_datasets.sh          # small preset (default)
-#   ./scripts/generate_synthetic_datasets.sh full     # large preset (server)
+#   ./scripts/generate_synthetic_datasets.sh [options] [MODE]
 #
-# Environment:
+# Modes: (default) small | full
+#
+# Options:
+#   --log PATH, -l PATH   Write stdout/stderr to PATH (and print to terminal)
+#
+# Environment (bash/sh only):
 #   TIN_TEST_BIN  Path to tin_test (default: build/release, else build/debug)
-#   LOG_FILE      If set, write stdout/stderr to this file (and still print to terminal)
+#   LOG_FILE      Same as --log (bash/sh inline assignment only)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -22,19 +26,55 @@ OUT_ROOT="${ROOT}/output_synthetic"
 
 usage() {
   cat <<'EOF'
-Usage: generate_synthetic_datasets.sh [MODE]
+Usage: generate_synthetic_datasets.sh [options] [MODE]
 
 Modes:
   (none)   Small preset: 3 datasets for local testing
   full     Large preset: 8 datasets (100–100000 objects × 200/500 vertices)
 
-Environment:
-  TIN_TEST_BIN   tin_test executable (default: build/release, else build/debug)
-  LOG_FILE       Log path (e.g. output_synthetic/generation.log)
+Options:
+  --log PATH, -l PATH   Log to PATH (screen + file)
 
-See README.md for estimated disk usage.
+Environment (bash/sh):
+  TIN_TEST_BIN   tin_test executable
+  LOG_FILE       Same as --log
+
+Examples:
+  ./scripts/generate_synthetic_datasets.sh --log output_synthetic/generation.log
+  ./scripts/generate_synthetic_datasets.sh --log output_synthetic/full.log full
+
+On csh/tcsh, use --log (not LOG_FILE=... ./script).
+
+See README.md for disk usage estimates.
 EOF
 }
+
+MODE="small"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h | --help | help)
+      usage
+      exit 0
+      ;;
+    --log | -l)
+      if [[ $# -lt 2 ]]; then
+        echo "error: missing path after $1" >&2
+        exit 1
+      fi
+      LOG_FILE="$2"
+      shift 2
+      ;;
+    full | small)
+      MODE="$1"
+      shift
+      ;;
+    *)
+      echo "error: unknown argument: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
 
 mkdir -p "${OUT_ROOT}"
 
@@ -93,15 +133,11 @@ run_full() {
   done
 }
 
-MODE="${1:-small}"
-
 case "${MODE}" in
-  small|"") run_small ;;
+  small) run_small ;;
   full) run_full ;;
-  -h|--help|help) usage; exit 0 ;;
   *)
     echo "error: unknown mode: ${MODE}" >&2
-    usage >&2
     exit 1
     ;;
 esac

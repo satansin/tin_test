@@ -135,13 +135,14 @@ Eight datasets: object counts **100, 1000, 10000, 100000** × hull vertices **20
 
 ## Logging
 
-**Dataset runs** — set `LOG_FILE` (works on all shells, including csh/tcsh):
+**Dataset runs** — use `--log` (works on every shell, including csh/tcsh):
 
 ```bash
-LOG_FILE=output_synthetic/generation.log ./scripts/generate_synthetic_datasets.sh
-LOG_FILE=output_synthetic/generation_full.log ./scripts/generate_synthetic_datasets.sh full
-LOG_FILE="output_synthetic/run_$(date +%Y%m%d_%H%M%S).log" ./scripts/generate_synthetic_datasets.sh
+./scripts/generate_synthetic_datasets.sh --log output_synthetic/generation.log
+./scripts/generate_synthetic_datasets.sh --log output_synthetic/generation_full.log full
 ```
+
+On **bash/sh** only, you can also write `LOG_FILE=path ./scripts/...`. That syntax does **not** work on csh/tcsh (`Command not found`). Alternatives there: `--log`, or `env LOG_FILE=path ./scripts/...`, or `setenv LOG_FILE path` then run the script.
 
 **Single `tin_test` or build** — if `2>&1 | tee` fails with *Ambiguous output redirect*, wrap in `bash`:
 
@@ -201,4 +202,5 @@ third_party/qhull/               # created at configure (gitignored)
 | Git fetch fails on server | Copy `third_party/trimesh2` and `third_party/qhull` from another machine |
 | Very slow generation | Use `Release` build; large `--num-vertices-per-object` triggers many hull passes |
 | `Nonrepresentable section on output` linking Qhull | Pull latest CMake: only Qhull **libraries** are built (not `user_eg3` / CLI tools) |
-| `Ambiguous output redirect` with `tee` | Login shell is likely csh/tcsh — use `LOG_FILE=... ./scripts/...` or wrap in `bash -c '...'` |
+| `Ambiguous output redirect` with `tee` | Login shell is likely csh/tcsh — use `./scripts/... --log file` or `bash -c '...'` |
+| `LOG_FILE=...: Command not found` | csh/tcsh does not support `VAR=value command` — use `--log path ./scripts/...` instead |
