@@ -1,10 +1,32 @@
 #!/usr/bin/env bash
-# Generate three synthetic TIN datasets under output_synthetic/.
+# Generate synthetic TIN datasets under output_synthetic/.
+#
+# Usage:
+#   ./scripts/generate_synthetic_datasets.sh          # small preset (default)
+#   ./scripts/generate_synthetic_datasets.sh full     # large preset (server)
+#
+# Environment:
+#   TIN_TEST_BIN  Path to tin_test (default: build/debug/tin_test)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TIN_TEST="${TIN_TEST_BIN:-${ROOT}/build/debug/tin_test}"
 OUT_ROOT="${ROOT}/output_synthetic"
+
+usage() {
+  cat <<'EOF'
+Usage: generate_synthetic_datasets.sh [MODE]
+
+Modes:
+  (none)   Small preset: 3 datasets for local testing
+  full     Large preset: 8 datasets (100–100000 objects × 200/500 vertices)
+
+Environment:
+  TIN_TEST_BIN   tin_test executable (default: build/debug/tin_test)
+
+See README.md for estimated disk usage.
+EOF
+}
 
 mkdir -p "${OUT_ROOT}"
 
@@ -36,17 +58,37 @@ generate_dataset() {
     --seed "${seed}"
 }
 
-echo "Using tin_test: ${TIN_TEST}"
-echo "Output root: ${OUT_ROOT}"
+run_small() {
+  echo "Mode: small (default)"
+  generate_dataset "objects100_vertices200" 100 200 1001
+  generate_dataset "objects1000_vertices200" 1000 200 1002
+  generate_dataset "objects100_vertices500" 100 500 1003
+}
 
-# 1) 100 objects × 200 hull vertices
-generate_dataset "objects100_vertices200" 100 200 1001
+run_full() {
+  echo "Mode: full"
+  local seed=2001
+  for num_objects in 100 1000 10000 100000; do
+    for num_vertices in 200 500; do
+      generate_dataset "objects${num_objects}_vertices${num_vertices}" \
+        "${num_objects}" "${num_vertices}" "${seed}"
+      seed=$((seed + 1))
+    done
+  done
+}
 
-# 2) 1000 objects × 200 hull vertices
-generate_dataset "objects1000_vertices200" 1000 200 1002
+MODE="${1:-small}"
 
-# 3) 100 objects × 500 hull vertices
-generate_dataset "objects100_vertices500" 100 500 1003
+case "${MODE}" in
+  small|"") run_small ;;
+  full) run_full ;;
+  -h|--help|help) usage; exit 0 ;;
+  *)
+    echo "error: unknown mode: ${MODE}" >&2
+    usage >&2
+    exit 1
+    ;;
+esac
 
 echo ""
 echo "All datasets written under ${OUT_ROOT}/"

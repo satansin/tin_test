@@ -73,7 +73,13 @@ Both live in `include/tin_gen/generator.hpp` and produce convex hulls with **exa
 
 ## Synthetic datasets script
 
-`scripts/generate_synthetic_datasets.sh` creates three datasets under `output_synthetic/`:
+`scripts/generate_synthetic_datasets.sh` writes PLY meshes under `output_synthetic/`.
+
+### Small preset (default)
+
+```bash
+./scripts/generate_synthetic_datasets.sh
+```
 
 | Folder | Objects | Vertices/object |
 |--------|---------|-----------------|
@@ -81,11 +87,28 @@ Both live in `include/tin_gen/generator.hpp` and produce convex hulls with **exa
 | `objects1000_vertices200` | 1000 | 200 |
 | `objects100_vertices500` | 100 | 500 |
 
-Run:
+Rough disk use: **~15 MB** (measured on sample output).
+
+### Full preset (server)
 
 ```bash
-./scripts/generate_synthetic_datasets.sh
+./scripts/generate_synthetic_datasets.sh full
 ```
+
+Eight datasets: object counts **100, 1000, 10000, 100000** × hull vertices **200, 500** each. Folder names follow `objects{N}_vertices{V}` (e.g. `objects10000_vertices500`).
+
+| Objects | 200 vertices | 500 vertices | Subtotal |
+|---------|--------------|--------------|----------|
+| 100 | ~1.1 MB | ~2.7 MB | ~4 MB |
+| 1,000 | ~11 MB | ~27 MB | ~38 MB |
+| 10,000 | ~110 MB | ~270 MB | ~380 MB |
+| 100,000 | ~1.1 GB | ~2.7 GB | ~3.8 GB |
+
+**Total (full preset): ~4.2 GB** — based on ~11 KB/PLY at 200 vertices and ~27 KB/PLY at 500 vertices (ASCII PLY). Actual size varies slightly with hull geometry.
+
+Generation time scales with object count and vertex count; the full preset is intended for a server (expect hours at 100k objects).
+
+### Build tip
 
 Use a release build for speed:
 
