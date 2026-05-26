@@ -10,7 +10,7 @@ file(REMOVE_RECURSE "${work_dir}")
 file(MAKE_DIRECTORY "${work_dir}")
 
 execute_process(
-  COMMAND "${TIN_TEST}" generate
+  COMMAND "${TIN_TEST}" generate --num-objects 5 --num-vertices-per-object 20 --seed 1
   WORKING_DIRECTORY "${work_dir}"
   RESULT_VARIABLE run_result
   OUTPUT_VARIABLE run_output

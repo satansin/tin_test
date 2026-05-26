@@ -56,10 +56,9 @@ TinMesh convex_hull_from_points(const std::vector<std::array<double, 3>>& points
 
 }  // namespace
 
-std::vector<TinMesh> generate_random_tin_trimesh(const std::size_t num_objects,
+std::vector<TinMesh> generate_random_tin(const std::size_t num_objects,
                                          const std::size_t num_vertices_per_object,
-                                         const double scale,
-                                         const unsigned random_seed) {
+                                         const double scale, const unsigned random_seed) {
   std::mt19937 rng;
   if (random_seed == 0) {
     std::random_device rd;

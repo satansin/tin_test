@@ -1,4 +1,5 @@
 CompileFlags:
+  CompilationDatabase: build/release
   Add:
     - -Iinclude
     - -std=c++20

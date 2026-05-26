@@ -5,28 +5,17 @@
 
 #include <cstdlib>
 #include <iostream>
-#include <vector>
 
 namespace tin_gen {
-namespace {
-
-std::vector<TinMesh> generate_with_backend(const AppConfig& config) {
-  if (config.backend == GeneratorBackend::Trimesh2) {
-    return generate_random_tin_trimesh(config.num_objects, config.num_vertices_per_object,
-                                       config.scale, config.random_seed);
-  }
-  return generate_random_tin(config.num_objects, config.num_vertices_per_object, config.scale,
-                           config.random_seed);
-}
-
-}  // namespace
 
 int run_generate(const AppConfig& config) {
   CpuTimer cpu_timer;
   WallTimer wall_timer;
   cpu_timer.start();
   wall_timer.start();
-  const auto objects = generate_with_backend(config);
+  const auto objects =
+      generate_random_tin(config.num_objects, config.num_vertices_per_object, config.scale,
+                          config.random_seed);
   cpu_timer.stop();
   wall_timer.stop();
   std::cout << "generate CPU time: " << cpu_timer.elapsed_seconds() << " s\n";
@@ -35,7 +24,6 @@ int run_generate(const AppConfig& config) {
   save_objects_as_files(objects, config.output_dir, config.format);
 
   if (!objects.empty()) {
-    std::cout << "Backend: " << generator_backend_name(config.backend) << '\n';
     std::cout << "Generated " << objects.size() << " TIN(s) as "
               << mesh_format_name(config.format) << ". First mesh: "
               << objects.front().vertices.size() << " vertices, "

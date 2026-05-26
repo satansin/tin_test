@@ -45,16 +45,15 @@ void print_usage(const char* program) {
             << "  generate   Build random TIN meshes and write files\n"
             << "  help       Show this help\n\n"
             << "Generate options:\n"
-            << "  --backend NAME      Generator: cgal | trimesh2 (default: cgal)\n"
             << "  --format FORMAT     Output mesh format: ply | obj (default: ply)\n"
             << "  -o, --output-dir DIR   Output directory (default: output)\n"
-            << "  --num-objects N     Number of meshes to generate (default: 5)\n"
-            << "  --num-vertices-per-object N   Vertices on each convex hull (default: 50)\n"
-            << "  --scale VALUE       Random point coordinate scale (default: 10)\n"
+            << "  --num-objects N     Number of meshes to generate (default: 10)\n"
+            << "  --num-vertices-per-object N   Vertices on each convex hull (default: 200)\n"
+            << "  --scale VALUE       Random point coordinate scale (default: 1)\n"
             << "  --seed N            RNG seed, 0 = random (default: 0)\n\n"
             << "Examples:\n"
             << "  " << program << " generate --format obj\n"
-            << "  " << program << " --backend trimesh2 --seed 42\n";
+            << "  " << program << " generate --seed 42 --num-objects 5\n";
 }
 
 std::optional<AppRequest> parse_app_request(const int argc, char* argv[]) {

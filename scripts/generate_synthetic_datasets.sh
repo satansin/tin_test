@@ -10,7 +10,13 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TIN_TEST="${TIN_TEST_BIN:-${ROOT}/build/debug/tin_test}"
+if [[ -n "${TIN_TEST_BIN:-}" ]]; then
+  TIN_TEST="${TIN_TEST_BIN}"
+elif [[ -x "${ROOT}/build/release/tin_test" ]]; then
+  TIN_TEST="${ROOT}/build/release/tin_test"
+else
+  TIN_TEST="${ROOT}/build/debug/tin_test"
+fi
 OUT_ROOT="${ROOT}/output_synthetic"
 
 usage() {
@@ -22,7 +28,7 @@ Modes:
   full     Large preset: 8 datasets (100–100000 objects × 200/500 vertices)
 
 Environment:
-  TIN_TEST_BIN   tin_test executable (default: build/debug/tin_test)
+  TIN_TEST_BIN   tin_test executable (default: build/release, else build/debug)
 
 See README.md for estimated disk usage.
 EOF
@@ -33,7 +39,7 @@ mkdir -p "${OUT_ROOT}"
 if [[ ! -x "${TIN_TEST}" ]]; then
   echo "error: tin_test not found at ${TIN_TEST}" >&2
   echo "Build with:" >&2
-  echo "  cmake --preset debug && cmake --build --preset debug" >&2
+  echo "  cmake --preset release && cmake --build --preset release" >&2
   exit 1
 fi
 

@@ -25,24 +25,19 @@ if(CMAKE_EXPORT_COMPILE_COMMANDS)
   )
 endif()
 
-if(APPLE AND EXISTS "/opt/homebrew")
-  list(APPEND CMAKE_PREFIX_PATH "/opt/homebrew")
-endif()
-
 if(APPLE)
   if(NOT CMAKE_OSX_ARCHITECTURES)
     set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "Target macOS architectures")
   endif()
 endif()
 
-find_package(CGAL REQUIRED)
+include(cmake/fetch_trimesh2.cmake)
 add_subdirectory(cmake/trimesh2)
 include(cmake/find_qhull.cmake)
 
 add_library(tin_gen
   src/app.cpp
-  src/backends/generator_cgal.cpp
-  src/backends/generator_trimesh2.cpp
+  src/backends/generator.cpp
   src/commands/generate.cpp
   src/convex_hull_3d.cpp
   src/convex_hull_vertices.cpp
@@ -53,13 +48,14 @@ add_library(tin_gen
   src/generator_save.cpp
 )
 target_include_directories(tin_gen PUBLIC include)
+target_include_directories(tin_gen SYSTEM PUBLIC "${TIN_QHULL_INCLUDE_DIR}")
 target_link_libraries(tin_gen
   PUBLIC
-    CGAL::CGAL
     trimesh2
     Qhull::qhullcpp
     Qhull::qhullstatic_r
 )
+add_dependencies(tin_gen qhullcpp qhullstatic_r)
 
 add_executable(tin_test src/main.cpp)
 target_link_libraries(tin_test PRIVATE tin_gen)

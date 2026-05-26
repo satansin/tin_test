@@ -1,10 +1,7 @@
 # Static TriMesh2 library (IO + mesh ops, no OpenGL utilities).
-set(TRIMESH2_ROOT "${CMAKE_SOURCE_DIR}/third_party/trimesh2")
-
-if(NOT EXISTS "${TRIMESH2_ROOT}/include/TriMesh.h")
-  message(FATAL_ERROR
-    "TriMesh2 not found at ${TRIMESH2_ROOT}. Clone it:\n"
-    "  git clone https://github.com/Forceflow/trimesh2.git third_party/trimesh2")
+# TRIMESH2_ROOT is set by cmake/fetch_trimesh2.cmake before add_subdirectory().
+if(NOT TRIMESH2_ROOT)
+  set(TRIMESH2_ROOT "${CMAKE_SOURCE_DIR}/third_party/trimesh2")
 endif()
 
 set(TRIMESH2_SOURCES

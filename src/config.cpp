@@ -1,42 +1,8 @@
 #include "tin_gen/config.hpp"
 
-#include <algorithm>
-#include <cctype>
 #include <stdexcept>
 
 namespace tin_gen {
-namespace {
-
-std::string lower(std::string_view value) {
-  std::string out(value);
-  std::transform(out.begin(), out.end(), out.begin(),
-                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-  return out;
-}
-
-}  // namespace
-
-GeneratorBackend parse_generator_backend(const std::string_view value) {
-  const std::string normalized = lower(value);
-  if (normalized == "cgal") {
-    return GeneratorBackend::Cgal;
-  }
-  if (normalized == "trimesh" || normalized == "trimesh2") {
-    return GeneratorBackend::Trimesh2;
-  }
-  throw std::invalid_argument("Unsupported backend: " + std::string(value) +
-                              " (expected cgal or trimesh2)");
-}
-
-std::string_view generator_backend_name(const GeneratorBackend backend) {
-  switch (backend) {
-    case GeneratorBackend::Cgal:
-      return "cgal";
-    case GeneratorBackend::Trimesh2:
-      return "trimesh2";
-  }
-  return "cgal";
-}
 
 std::optional<AppConfig> parse_generate_config(const int argc, char* argv[]) {
   AppConfig config;
@@ -53,9 +19,7 @@ std::optional<AppConfig> parse_generate_config(const int argc, char* argv[]) {
     if (arg == "-h" || arg == "--help") {
       return std::nullopt;
     }
-    if (arg == "--backend") {
-      config.backend = parse_generator_backend(need_value("--backend"));
-    } else if (arg == "--format") {
+    if (arg == "--format") {
       config.format = parse_mesh_format(need_value("--format"));
     } else if (arg == "-o" || arg == "--output-dir") {
       config.output_dir = need_value(arg.c_str());

@@ -1,148 +1,186 @@
 # tin_test
 
-Synthetic 3D TIN (triangular irregular network) generator. Each generated mesh is the convex hull of a random point set, with **exactly** the requested number of hull vertices. Both **CGAL** and **[TriMesh2](https://github.com/Forceflow/trimesh2)** backends are always compiled in; pick at runtime.
+Synthetic 3D TIN (triangular irregular network) generator. Each mesh is the convex hull of a random point set with **exactly** the requested number of hull vertices.
+
+**Dependencies:** [TriMesh2](https://github.com/Forceflow/trimesh2) and [Qhull](https://github.com/qhull/qhull) are downloaded into `third_party/` on first configure and built with the project. No system CGAL/Qhull/TriMesh2 install is required.
 
 ## Prerequisites
 
-| Tool | macOS | Linux (Debian/Ubuntu) |
-|------|-------|------------------------|
-| CMake ≥ 3.21 | `brew install cmake` | `sudo apt install cmake` |
-| Ninja | `brew install ninja` | `sudo apt install ninja-build` |
-| C++ compiler | Xcode Command Line Tools | `sudo apt install g++` |
-| CGAL | `brew install cgal` | `sudo apt install libcgal-dev` |
-| Qhull | `brew install qhull` | `sudo apt install libqhull-dev` |
+| Tool | Purpose |
+|------|---------|
+| CMake ≥ 3.21 | Configure and build |
+| Ninja (recommended) | Fast builds |
+| C++20 compiler | `g++` 10+, Clang 10+, or Apple Clang |
+| Git | Fetch `third_party/trimesh2` and `third_party/qhull` once |
 
-Clone TriMesh2 into the project:
+### macOS (Homebrew)
 
 ```bash
-git clone https://github.com/Forceflow/trimesh2.git third_party/trimesh2
+brew install cmake ninja git
+xcode-select --install   # if needed
 ```
+
+### Debian / Ubuntu
+
+```bash
+sudo apt update
+sudo apt install cmake ninja-build g++ git
+```
+
+### CentOS / Rocky Linux / AlmaLinux
+
+**Stream 8 / 9 / Rocky 9 / Alma 9** (recommended):
+
+```bash
+sudo dnf install cmake ninja-build gcc-c++ git
+```
+
+**CentOS 7** (end-of-life; needs a newer compiler for C++20):
+
+```bash
+sudo yum install centos-release-scl
+sudo yum install devtoolset-11-gcc-c++ cmake3 ninja-build git
+scl enable devtoolset-11 bash
+# use cmake3 if `cmake` is still too old; CMake ≥ 3.21 is required
+```
+
+If `cmake` is older than 3.21, install a newer CMake from [Kitware](https://cmake.org/download/) or your module system, then use that binary.
 
 ## Build
 
+First configure downloads vendored libraries (needs network):
+
 ```bash
-cmake --preset debug
-cmake --build --preset debug
+cmake --preset release
+cmake --build --preset release
 ```
 
-Release: `cmake --preset release` / `cmake --build --preset release`.
+Binary: `build/release/tin_test`
 
-Requires **CMake ≥ 3.21** (presets and `CMakeLists.txt`). If you see `Unrecognized "version" field`, CMake is older than 3.21—upgrade CMake or use a plain configure once you have 3.21+:
+Without presets:
 
 ```bash
 cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build/release -j
 ```
 
-## Run
+### Offline / air-gapped
 
-The executable is `tin_test`. Running it with no arguments prints usage.
+On a connected machine, run `cmake` once so `third_party/trimesh2` and `third_party/qhull` exist. Copy the whole repo (including those folders) to the offline host, then configure and build there.
+
+### Clean reconfigure
+
+If dependencies or CMake logic changed:
 
 ```bash
-./build/debug/tin_test                                       # prints usage
-./build/debug/tin_test generate                              # use defaults
-./build/debug/tin_test generate --backend trimesh2 --seed 42
-./build/debug/tin_test generate --format obj --num-objects 5
-./build/debug/tin_test help
+rm -rf build/release third_party/trimesh2 third_party/qhull
+cmake --preset release && cmake --build --preset release
 ```
 
-### Commands
+## Run
 
-| Command | Description |
-|---------|-------------|
-| `generate` | Build random TIN meshes and write files |
-| `help` | Show usage |
+No arguments prints usage.
+
+```bash
+./build/release/tin_test
+./build/release/tin_test generate
+./build/release/tin_test generate --format obj --seed 42 --num-objects 5
+./build/release/tin_test help
+```
 
 ### Generate options
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--backend NAME` | `cgal` | `cgal` or `trimesh2` |
 | `--format FORMAT` | `ply` | `ply` or `obj` |
 | `-o, --output-dir DIR` | `output` | Output directory |
-| `--num-objects N` | `10` | Number of meshes to generate |
-| `--num-vertices-per-object N` | `200` | **Exact** hull vertex count per mesh |
-| `--scale VALUE` | `1.0` | Coordinate scale for random points |
+| `--num-objects N` | `10` | Number of meshes |
+| `--num-vertices-per-object N` | `200` | Exact hull vertex count per mesh |
+| `--scale VALUE` | `1.0` | Coordinate scale |
 | `--seed N` | `0` | RNG seed (`0` = random) |
 
-Output files: `<output-dir>/object_1.ply`, `object_2.ply`, … (or `.obj`). The command prints the backend, CPU time, wall time, and mesh stats.
+Output: `<output-dir>/object_1.ply`, `object_2.ply`, … The command prints CPU time, wall time, and mesh stats.
 
-## Generators (C++ API)
+## C++ API
 
-| Function | Backend |
-|----------|---------|
-| `generate_random_tin()` | CGAL convex hull |
-| `generate_random_tin_trimesh()` | TriMesh2 + Qhull convex hull |
+```cpp
+#include "tin_gen/generator.hpp"
 
-Both live in `include/tin_gen/generator.hpp` and produce convex hulls with **exactly** `num_vertices_per_object` vertices. The shared point-generation logic lives in `src/convex_hull_vertices.cpp`: it grows the point set (adding exterior support points) and prunes it (removing random hull-input points) until the hull has the target vertex count.
+auto meshes = tin_gen::generate_random_tin(
+    num_objects, num_vertices_per_object, scale, seed);
+tin_gen::save_objects_as_files(meshes, output_dir, tin_gen::MeshFormat::Ply);
+```
 
-> Note: Uniform random points in a 3D box have only about `N^(2/3)` points on the convex hull, so the iterative adjustment is needed for an exact count and scales worse than a single hull computation at large `N`.
+Exact hull vertex counts use `src/convex_hull_vertices.cpp` (grow/prune point set, Qhull for hull geometry, TriMesh2 to orient and validate).
+
+> Uniform random points in a 3D box yield only ~`N^(2/3)` hull vertices, so iterative adjustment is used for an exact count. Large `N` is slower than a single hull pass.
 
 ## Synthetic datasets script
 
-`scripts/generate_synthetic_datasets.sh` writes PLY meshes under `output_synthetic/`.
+```bash
+./scripts/generate_synthetic_datasets.sh          # small preset (~15 MB)
+./scripts/generate_synthetic_datasets.sh full     # large preset (~4.2 GB, hours)
+```
+
+Uses `build/release/tin_test` if present, otherwise `build/debug`. Override with:
+
+```bash
+TIN_TEST_BIN=build/release/tin_test ./scripts/generate_synthetic_datasets.sh
+```
 
 ### Small preset (default)
 
-```bash
-./scripts/generate_synthetic_datasets.sh
-```
-
 | Folder | Objects | Vertices/object |
 |--------|---------|-----------------|
-| `objects100_vertices200` | 100 | 200 |
-| `objects1000_vertices200` | 1000 | 200 |
-| `objects100_vertices500` | 100 | 500 |
+| `output_synthetic/objects100_vertices200` | 100 | 200 |
+| `output_synthetic/objects1000_vertices200` | 1000 | 200 |
+| `output_synthetic/objects100_vertices500` | 100 | 500 |
 
-Rough disk use: **~15 MB** (measured on sample output).
+### Full preset (`full`)
 
-### Full preset (server)
+Eight datasets: object counts **100, 1000, 10000, 100000** × hull vertices **200** and **500**.
 
-```bash
-./scripts/generate_synthetic_datasets.sh full
-```
-
-Eight datasets: object counts **100, 1000, 10000, 100000** × hull vertices **200, 500** each. Folder names follow `objects{N}_vertices{V}` (e.g. `objects10000_vertices500`).
-
-| Objects | 200 vertices | 500 vertices | Subtotal |
-|---------|--------------|--------------|----------|
+| Objects | @ 200 v | @ 500 v | Subtotal |
+|---------|---------|---------|----------|
 | 100 | ~1.1 MB | ~2.7 MB | ~4 MB |
 | 1,000 | ~11 MB | ~27 MB | ~38 MB |
 | 10,000 | ~110 MB | ~270 MB | ~380 MB |
 | 100,000 | ~1.1 GB | ~2.7 GB | ~3.8 GB |
 
-**Total (full preset): ~4.2 GB** — based on ~11 KB/PLY at 200 vertices and ~27 KB/PLY at 500 vertices (ASCII PLY). Actual size varies slightly with hull geometry.
-
-Generation time scales with object count and vertex count; the full preset is intended for a server (expect hours at 100k objects).
-
-### Build tip
-
-Use a release build for speed:
-
-```bash
-cmake --preset release && cmake --build --preset release
-TIN_TEST_BIN=build/release/tin_test ./scripts/generate_synthetic_datasets.sh
-```
+**Total ~4.2 GB** (ASCII PLY, ~11 KB/mesh @ 200 v, ~27 KB @ 500 v).
 
 ## Tests
 
 ```bash
-ctest --preset debug
+ctest --preset debug -R tin_test_smoke
 ```
+
+Qhull’s own tests are also registered when it is vendored; the command above runs only this project’s smoke test.
 
 ## Project layout
 
 ```text
-include/tin_gen/                     # public headers (config, app, generator, …)
-src/main.cpp                         # parses args, dispatches commands
-src/app.cpp                          # command parsing + dispatch
-src/commands/generate.cpp            # generate command (timing, save, stats)
-src/backends/generator_cgal.cpp      # generate_random_tin()
-src/backends/generator_trimesh2.cpp  # generate_random_tin_trimesh()
-src/convex_hull_vertices.cpp         # exact-vertex-count point generator
-src/convex_hull_3d.cpp               # Qhull wrapper (used by TriMesh2 path)
-src/cpu_timer.cpp                    # CPU + wall-clock timers
+include/tin_gen/                 # public API
+src/main.cpp                     # entry point
+src/app.cpp                      # CLI commands
+src/commands/generate.cpp
+src/backends/generator.cpp       # TriMesh2 + Qhull generation
+src/convex_hull_vertices.cpp     # exact vertex-count point set
+src/convex_hull_3d.cpp           # Qhull hull mesh
+cmake/fetch_trimesh2.cmake       # FetchContent → third_party/trimesh2
+cmake/find_qhull.cmake           # FetchContent → third_party/qhull
+cmake/trimesh2/                  # static TriMesh2 library target
 scripts/generate_synthetic_datasets.sh
-cmake/trimesh2/
-third_party/trimesh2/                # cloned separately
+third_party/trimesh2/            # created at configure (gitignored)
+third_party/qhull/               # created at configure (gitignored)
 ```
+
+## Troubleshooting
+
+| Problem | What to do |
+|---------|------------|
+| `Unrecognized "version" field` (presets) | Upgrade CMake to ≥ 3.21 |
+| `Could not use disabled preset "debug"` on Linux | Pull latest `CMakePresets.json` (mac-only preset removed) |
+| `TriMesh.h` / `libqhullcpp/...` not found | Run `cmake` from a clean build dir so fetch scripts run |
+| Git fetch fails on server | Copy `third_party/trimesh2` and `third_party/qhull` from another machine |
+| Very slow generation | Use `Release` build; large `--num-vertices-per-object` triggers many hull passes |
