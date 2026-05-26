@@ -12,21 +12,9 @@
       "generator": "Ninja"
     },
     {
-      "name": "mac-arm64",
-      "hidden": true,
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Darwin"
-      },
-      "cacheVariables": {
-        "CMAKE_OSX_ARCHITECTURES": "arm64"
-      }
-    },
-    {
       "name": "debug",
       "displayName": "Debug",
-      "inherits": ["ninja-base", "mac-arm64"],
+      "inherits": ["ninja-base"],
       "binaryDir": "${sourceDir}/build/debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug"
@@ -35,7 +23,7 @@
     {
       "name": "release",
       "displayName": "Release",
-      "inherits": ["ninja-base", "mac-arm64"],
+      "inherits": ["ninja-base"],
       "binaryDir": "${sourceDir}/build/release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
