@@ -108,8 +108,13 @@ Output: `<output-dir>/object_1.ply`, `object_2.ply`, … The command prints CPU 
 ```bash
 ./scripts/generate_synthetic_datasets.sh          # small preset (~15 MB)
 ./scripts/generate_synthetic_datasets.sh full     # large preset (~4.2 GB, hours)
+```
 
-TIN_TEST_BIN=build/release/tin_test ./scripts/generate_synthetic_datasets.sh
+On **csh/tcsh**, pick the binary with `setenv` (not `VAR=value command`):
+
+```csh
+setenv TIN_TEST_BIN build/release/tin_test
+./scripts/generate_synthetic_datasets.sh
 ```
 
 ### Small preset (default)
@@ -135,21 +140,23 @@ Eight datasets: object counts **100, 1000, 10000, 100000** × hull vertices **20
 
 ## Logging
 
-**Dataset runs** — use `--log` (works on every shell, including csh/tcsh):
+Use these on **csh/tcsh** (and bash). Do **not** use `LOG_FILE=path ./script` or `2>&1 | tee` in csh — they fail with *Command not found* or *Ambiguous output redirect*.
 
-```bash
+**Dataset runs** — `--log` writes to a file and still prints to the terminal:
+
+```csh
 ./scripts/generate_synthetic_datasets.sh --log output_synthetic/generation.log
 ./scripts/generate_synthetic_datasets.sh --log output_synthetic/generation_full.log full
 ```
 
-On **bash/sh** only, you can also write `LOG_FILE=path ./scripts/...`. That syntax does **not** work on csh/tcsh (`Command not found`). Alternatives there: `--log`, or `env LOG_FILE=path ./scripts/...`, or `setenv LOG_FILE path` then run the script.
+**Single command** — csh merges stdout and stderr with `>&` (output only in the log, not on screen):
 
-**Single `tin_test` or build** — if `2>&1 | tee` fails with *Ambiguous output redirect*, wrap in `bash`:
-
-```bash
-bash -c './build/release/tin_test generate --num-objects 10 --seed 42 2>&1 | tee run.log'
-bash -c 'cmake --build build/release -j 2>&1 | tee build.log'
+```csh
+./build/release/tin_test generate --num-objects 10 --seed 42 >& run.log
+cmake --build build/release -j >& build.log
 ```
+
+Append instead of overwrite: `>>& logfile`.
 
 ## C++ API
 
@@ -202,5 +209,5 @@ third_party/qhull/               # created at configure (gitignored)
 | Git fetch fails on server | Copy `third_party/trimesh2` and `third_party/qhull` from another machine |
 | Very slow generation | Use `Release` build; large `--num-vertices-per-object` triggers many hull passes |
 | `Nonrepresentable section on output` linking Qhull | Pull latest CMake: only Qhull **libraries** are built (not `user_eg3` / CLI tools) |
-| `Ambiguous output redirect` with `tee` | Login shell is likely csh/tcsh — use `./scripts/... --log file` or `bash -c '...'` |
-| `LOG_FILE=...: Command not found` | csh/tcsh does not support `VAR=value command` — use `--log path ./scripts/...` instead |
+| `Ambiguous output redirect` with `tee` | Use csh `command >& file` or `./scripts/... --log file` (see [Logging](#logging)) |
+| `LOG_FILE=...: Command not found` | csh/tcsh: use `./scripts/... --log file` or `setenv VAR value` then run the command |
