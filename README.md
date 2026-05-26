@@ -101,6 +101,57 @@ No arguments prints usage.
 
 Output: `<output-dir>/object_1.ply`, `object_2.ply`, … The command prints CPU time, wall time, and mesh stats.
 
+### Save output to a log file
+
+Use `2>&1` so stderr is included. Use `tee` to see output on the terminal **and** write a file.
+
+**Single generate run** (print + save):
+
+```bash
+./build/release/tin_test generate --num-objects 10 --seed 42 2>&1 | tee run.log
+```
+
+**Single generate run** (file only):
+
+```bash
+./build/release/tin_test generate --num-objects 10 --seed 42 > run.log 2>&1
+```
+
+**Dataset script** (small preset):
+
+```bash
+mkdir -p output_synthetic
+./scripts/generate_synthetic_datasets.sh 2>&1 | tee output_synthetic/generation.log
+```
+
+**Dataset script** (full preset, long run):
+
+```bash
+mkdir -p output_synthetic
+./scripts/generate_synthetic_datasets.sh full 2>&1 | tee output_synthetic/generation_full.log
+```
+
+**Timestamped log** (handy on servers):
+
+```bash
+mkdir -p output_synthetic
+LOG="output_synthetic/run_$(date +%Y%m%d_%H%M%S).log"
+./scripts/generate_synthetic_datasets.sh 2>&1 | tee "$LOG"
+```
+
+**Build log:**
+
+```bash
+cmake --build build/release -j 2>&1 | tee build.log
+```
+
+| Syntax | Meaning |
+|--------|---------|
+| `> file.txt` | Write stdout to file (overwrite) |
+| `2>&1` | Include stderr in the same stream |
+| `>> file.txt` | Append instead of overwrite |
+| `tee file.txt` | Show on screen and save to file |
+
 ## C++ API
 
 ```cpp
@@ -127,6 +178,8 @@ Uses `build/release/tin_test` if present, otherwise `build/debug`. Override with
 ```bash
 TIN_TEST_BIN=build/release/tin_test ./scripts/generate_synthetic_datasets.sh
 ```
+
+To save a log while generating, see [Save output to a log file](#save-output-to-a-log-file) above.
 
 ### Small preset (default)
 
