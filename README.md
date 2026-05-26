@@ -6,7 +6,7 @@ Synthetic 3D TIN (triangular irregular network) generator. Each generated mesh i
 
 | Tool | macOS | Linux (Debian/Ubuntu) |
 |------|-------|------------------------|
-| CMake ≥ 3.27 | `brew install cmake` | `sudo apt install cmake` |
+| CMake ≥ 3.21 | `brew install cmake` | `sudo apt install cmake` |
 | Ninja | `brew install ninja` | `sudo apt install ninja-build` |
 | C++ compiler | Xcode Command Line Tools | `sudo apt install g++` |
 | CGAL | `brew install cgal` | `sudo apt install libcgal-dev` |
@@ -26,6 +26,13 @@ cmake --build --preset debug
 ```
 
 Release: `cmake --preset release` / `cmake --build --preset release`.
+
+Requires **CMake ≥ 3.21** (presets and `CMakeLists.txt`). If you see `Unrecognized "version" field`, CMake is older than 3.21—upgrade CMake or use a plain configure once you have 3.21+:
+
+```bash
+cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build/release -j
+```
 
 ## Run
 
