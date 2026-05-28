@@ -6,11 +6,12 @@
 
 namespace tin_gen {
 
-enum class AppCommand { Generate };
+enum class AppCommand { Generate, Normalize };
 
 struct AppRequest {
   AppCommand command = AppCommand::Generate;
-  AppConfig config;
+  GenerationConfig generate_config;
+  NormalizeConfig normalize_config;
 };
 
 [[nodiscard]] AppCommand parse_app_command(std::string_view name);

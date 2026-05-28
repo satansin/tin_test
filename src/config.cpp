@@ -4,8 +4,8 @@
 
 namespace tin_gen {
 
-std::optional<AppConfig> parse_generate_config(const int argc, char* argv[]) {
-  AppConfig config;
+std::optional<GenerationConfig> parse_generate_config(const int argc, char* argv[]) {
+  GenerationConfig config;
 
   for (int i = 0; i < argc; ++i) {
     const std::string arg = argv[i];
@@ -32,6 +32,8 @@ std::optional<AppConfig> parse_generate_config(const int argc, char* argv[]) {
       config.scale = std::stod(need_value("--scale"));
     } else if (arg == "--seed") {
       config.random_seed = static_cast<unsigned>(std::stoul(need_value("--seed")));
+    } else if (arg == "--quiet" || arg == "-q") {
+      config.quiet = true;
     } else {
       throw std::runtime_error("Unknown argument: " + arg);
     }

@@ -10,8 +10,9 @@
 #include <vector>
 
 namespace tin_gen {
+namespace {
 
-TinMesh convex_hull_3d(const std::vector<std::array<double, 3>>& input_points) {
+void run_qhull(const std::vector<std::array<double, 3>>& input_points, orgQhull::Qhull& qhull) {
   if (input_points.size() < 4) {
     throw std::runtime_error("Need at least 4 points for a 3D convex hull.");
   }
@@ -24,9 +25,54 @@ TinMesh convex_hull_3d(const std::vector<std::array<double, 3>>& input_points) {
     coords.push_back(p[2]);
   }
 
+  qhull.runQhull("", 3, static_cast<int>(input_points.size()), coords.data(), "Qt");
+}
+
+}  // namespace
+
+std::size_t convex_hull_vertex_count(const std::vector<std::array<double, 3>>& input_points) {
   try {
     orgQhull::Qhull qhull;
-    qhull.runQhull("", 3, static_cast<int>(input_points.size()), coords.data(), "Qt");
+    run_qhull(input_points, qhull);
+    std::size_t count = 0;
+    for (const orgQhull::QhullVertex& vertex : qhull.vertexList()) {
+      (void)vertex;
+      ++count;
+    }
+    return count;
+  } catch (const orgQhull::QhullError& ex) {
+    throw std::runtime_error(std::string("Qhull failed: ") + ex.what());
+  }
+}
+
+std::vector<std::size_t> convex_hull_point_indices(
+    const std::vector<std::array<double, 3>>& input_points) {
+  try {
+    orgQhull::Qhull qhull;
+    run_qhull(input_points, qhull);
+
+    std::vector<std::size_t> indices;
+    indices.reserve(input_points.size());
+    for (const orgQhull::QhullVertex& vertex : qhull.vertexList()) {
+      const int id = vertex.point().id();
+      if (id < 0 || static_cast<std::size_t>(id) >= input_points.size()) {
+        throw std::runtime_error("Qhull returned an unexpected input point id.");
+      }
+      indices.push_back(static_cast<std::size_t>(id));
+    }
+    if (indices.empty()) {
+      throw std::runtime_error("Convex hull has no vertices.");
+    }
+    return indices;
+  } catch (const orgQhull::QhullError& ex) {
+    throw std::runtime_error(std::string("Qhull failed: ") + ex.what());
+  }
+}
+
+TinMesh convex_hull_3d(const std::vector<std::array<double, 3>>& input_points) {
+  try {
+    orgQhull::Qhull qhull;
+    run_qhull(input_points, qhull);
 
     TinMesh mesh;
     std::unordered_map<int, std::size_t> vertex_index;

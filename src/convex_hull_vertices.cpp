@@ -10,15 +10,8 @@
 namespace tin_gen {
 namespace {
 
-constexpr double kCoordEpsRatio = 1e-9;
-
-bool points_near(const std::array<double, 3>& a, const std::array<double, 3>& b, const double eps) {
-  return std::abs(a[0] - b[0]) <= eps && std::abs(a[1] - b[1]) <= eps &&
-         std::abs(a[2] - b[2]) <= eps;
-}
-
 std::size_t count_convex_hull_vertices(const std::vector<std::array<double, 3>>& points) {
-  return convex_hull_3d(points).vertices.size();
+  return convex_hull_vertex_count(points);
 }
 
 void append_initial_tetrahedron(std::vector<std::array<double, 3>>& points, const double scale) {
@@ -56,26 +49,9 @@ void add_exterior_support_point(std::vector<std::array<double, 3>>& points, cons
   points.push_back({dir[0] * t, dir[1] * t, dir[2] * t});
 }
 
-void remove_random_hull_input_point(std::vector<std::array<double, 3>>& points, const double scale,
+void remove_random_hull_input_point(std::vector<std::array<double, 3>>& points,
                                     std::mt19937& rng) {
-  const TinMesh hull = convex_hull_3d(points);
-  const double eps = scale * kCoordEpsRatio;
-
-  std::vector<std::size_t> hull_indices;
-  hull_indices.reserve(points.size());
-  for (std::size_t i = 0; i < points.size(); ++i) {
-    for (const auto& hv : hull.vertices) {
-      if (points_near(points[i], hv, eps)) {
-        hull_indices.push_back(i);
-        break;
-      }
-    }
-  }
-
-  if (hull_indices.empty()) {
-    throw std::runtime_error("Could not match convex hull vertices to input points.");
-  }
-
+  const std::vector<std::size_t> hull_indices = convex_hull_point_indices(points);
   std::uniform_int_distribution<std::size_t> pick(0, hull_indices.size() - 1);
   const std::size_t erase_index = hull_indices[pick(rng)];
   points.erase(points.begin() + static_cast<std::ptrdiff_t>(erase_index));
@@ -107,7 +83,7 @@ std::vector<std::array<double, 3>> generate_convex_hull_vertex_points(const std:
     if (points.size() <= 4) {
       break;
     }
-    remove_random_hull_input_point(points, scale, rng);
+    remove_random_hull_input_point(points, rng);
   }
 
   throw std::runtime_error("Failed to generate a convex hull with the requested vertex count.");

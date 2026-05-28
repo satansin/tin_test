@@ -85,6 +85,7 @@ No arguments prints usage.
 ./build/release/tin_test
 ./build/release/tin_test generate
 ./build/release/tin_test generate --format obj --seed 42 --num-objects 5
+./build/release/tin_test normalize --input-dir sample_gen --no-metadata
 ./build/release/tin_test help
 ```
 
@@ -93,13 +94,34 @@ No arguments prints usage.
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--format FORMAT` | `ply` | `ply` or `obj` |
-| `-o, --output-dir DIR` | `output` | Output directory |
+| `-o, --output-dir DIR` | `sample_gen` | Output directory |
 | `--num-objects N` | `10` | Number of meshes |
 | `--num-vertices-per-object N` | `200` | Exact hull vertex count per mesh |
 | `--scale VALUE` | `1.0` | Coordinate scale |
 | `--seed N` | `0` | RNG seed (`0` = random) |
+| `-q, --quiet` | off | Progress every 1000 meshes instead of per file |
 
-Output: `<output-dir>/object_1.ply`, `object_2.ply`, … The command prints CPU time, wall time, and mesh stats.
+Output: `<output-dir>/object_1.ply`, `object_2.ply`, … Meshes are written as they are generated (not all held in RAM). The command prints CPU and wall time.
+
+**Large datasets (e.g. 100k meshes):** use a **Release** build and `--quiet`:
+
+```bash
+./build/release/tin_test generate --num-objects 10000 --num-vertices-per-object 200 \
+  --output-dir output_synthetic/objects10000_vertices200 --seed 42 --quiet
+```
+
+The synthetic dataset script enables `--quiet` automatically.
+
+### Normalize options
+
+Translates each mesh so the vertex mean is at the origin (subtracts the per-mesh mean). **No scaling** is applied. Output is written as ASCII PLY.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-i, --input-dir DIR` | (required) | Folder containing `.ply` files |
+| `-o, --output-dir DIR` | `sample_normalized` | Output folder for normalized `.ply` files |
+| `--metadata PATH` | `<input-dir>/metadata.txt` if present | CSV like `mesh_name,cat_name,no_v,no_f` (only listed meshes are processed; copied unchanged to the output folder) |
+| `--no-metadata` | off | Ignore metadata even if `metadata.txt` exists |
 
 ## Synthetic datasets script
 
@@ -107,7 +129,7 @@ Output: `<output-dir>/object_1.ply`, `object_2.ply`, … The command prints CPU 
 
 ```bash
 ./scripts/generate_synthetic_datasets.sh          # small preset (~15 MB)
-./scripts/generate_synthetic_datasets.sh full     # large preset (~4.2 GB, hours)
+./scripts/generate_synthetic_datasets.sh full     # large preset (~0.42 GB, slower)
 ```
 
 On **csh/tcsh**, pick the binary with `setenv` (not `VAR=value command`):
@@ -127,16 +149,14 @@ setenv TIN_TEST_BIN build/release/tin_test
 
 ### Full preset (`full`)
 
-Eight datasets: object counts **100, 1000, 10000, 100000** × hull vertices **200** and **500**.
+Six datasets: object counts **100, 1000, 10000** × hull vertices **200** and **500**.
 
 | Objects | @ 200 v | @ 500 v | Subtotal |
 |---------|---------|---------|----------|
 | 100 | ~1.1 MB | ~2.7 MB | ~4 MB |
 | 1,000 | ~11 MB | ~27 MB | ~38 MB |
 | 10,000 | ~110 MB | ~270 MB | ~380 MB |
-| 100,000 | ~1.1 GB | ~2.7 GB | ~3.8 GB |
-
-**Total ~4.2 GB** (ASCII PLY, ~11 KB/mesh @ 200 v, ~27 KB @ 500 v).
+**Total ~0.42 GB** (ASCII PLY, ~11 KB/mesh @ 200 v, ~27 KB @ 500 v).
 
 ## Logging
 
@@ -209,7 +229,7 @@ third_party/qhull/               # created at configure (gitignored)
 | `Could not use disabled preset "debug"` on Linux | Pull latest `CMakePresets.json` (mac-only preset removed) |
 | `TriMesh.h` / `libqhullcpp/...` not found | Run `cmake` from a clean build dir so fetch scripts run |
 | Git fetch fails on server | Copy `third_party/trimesh2` and `third_party/qhull` from another machine |
-| Very slow generation | Use `Release` build; large `--num-vertices-per-object` triggers many hull passes |
+| Very slow generation | Use **Release** build and `--quiet`; exact vertex counts need many Qhull passes per mesh — 500 vertices is much slower than 200 |
 | `Nonrepresentable section on output` linking Qhull | Pull latest CMake: only Qhull **libraries** are built (not `user_eg3` / CLI tools) |
 | `Ambiguous output redirect` with `tee` | Use csh `command >& file` or `./scripts/... --log file` (see [Logging](#logging)) |
 | `LOG_FILE=...: Command not found` | csh/tcsh: use `./scripts/... --log file` or `setenv VAR value` then run the command |

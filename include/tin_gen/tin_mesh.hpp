@@ -16,6 +16,8 @@ struct TinMesh {
   [[nodiscard]] bool is_watertight() const;
 };
 
+TinMesh read_ply(const std::string& filepath);
+
 void write_mesh(const std::string& filepath, const TinMesh& mesh, MeshFormat format);
 
 }  // namespace tin_gen

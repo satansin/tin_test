@@ -31,7 +31,7 @@ Usage: generate_synthetic_datasets.sh [options] [MODE]
 
 Modes:
   (none)   Small preset: 3 datasets for local testing
-  full     Large preset: 8 datasets (100–100000 objects × 200/500 vertices)
+  full     Large preset: 6 datasets (100–10000 objects × 200/500 vertices)
 
 Options:
   --log PATH, -l PATH       Log to PATH (screen + file)
@@ -127,7 +127,8 @@ generate_dataset() {
     --num-objects "${num_objects}" \
     --num-vertices-per-object "${num_vertices}" \
     --output-dir "${out_dir}" \
-    --seed "${seed}"
+    --seed "${seed}" \
+    --quiet
 }
 
 run_small() {
@@ -140,7 +141,7 @@ run_small() {
 run_full() {
   echo "Mode: full"
   local seed=2001
-  for num_objects in 100 1000 10000 100000; do
+  for num_objects in 100 1000 10000; do
     for num_vertices in 200 500; do
       generate_dataset "objects${num_objects}_vertices${num_vertices}" \
         "${num_objects}" "${num_vertices}" "${seed}"
