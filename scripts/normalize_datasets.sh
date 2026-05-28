@@ -47,6 +47,7 @@ normalize_dir() {
 echo "=== Synthetic datasets ==="
 if [[ "${MODE}" == "full" ]]; then
   for d in "${SYNTH_ROOT}"/*; do
+    [[ -d "${d}" ]] || continue
     name="$(basename "${d}")"
     normalize_dir "${d}" "${NORM_ROOT}/synthetic_${name}" 0
   done
@@ -60,6 +61,7 @@ fi
 
 echo "=== Raw datasets ==="
 for d in "${RAW_ROOT}"/*; do
+  [[ -d "${d}" ]] || continue
   name="$(basename "${d}")"
   out="${NORM_ROOT}/${name}"
   echo "--- ${name} ---"
