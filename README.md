@@ -233,25 +233,96 @@ Six datasets: object counts **100, 1000, 10000** × hull vertices **200** and **
 
 ## Logging
 
-Use these on **csh/tcsh** (and bash). Do **not** use `LOG_FILE=path ./script` or `2>&1 | tee` in csh — they fail with *Command not found* or *Ambiguous output redirect*.
+Long runs (`generate`, `normalize`, `build_kd`, etc.) are often started from **bash** or **tcsh**. Syntax differs; using bash-style redirects in tcsh causes errors such as `Ambiguous output redirect` or `Command not found`.
 
-**Dataset runs** — log file only (nothing on screen):
+Create the log directory first if needed, e.g. `mkdir -p output_synthetic`.
 
-```csh
+### bash / sh
+
+| Goal | How |
+|------|-----|
+| **Log only** (nothing on screen) | `command > logfile 2>&1` or `command &> logfile` |
+| **Log + screen** | `command 2>&1 \| tee logfile` |
+
+**`generate_synthetic_datasets.sh`** (built-in flags; preferred for that script):
+
+```bash
+# log only
 ./scripts/generate_synthetic_datasets.sh --log-only output_synthetic/generation.log
 ./scripts/generate_synthetic_datasets.sh --log-only output_synthetic/generation_full.log full
+
+# log + screen
+./scripts/generate_synthetic_datasets.sh --log output_synthetic/generation.log
+./scripts/generate_synthetic_datasets.sh -l output_synthetic/generation_full.log full
 ```
 
-Same, but also print progress to the terminal: use `--log` instead of `--log-only`.
+Same as `--log`: `LOG_FILE=path ./scripts/generate_synthetic_datasets.sh` (bash/sh only).
 
-**Single command** — csh merges stdout and stderr with `>&` (log only, no screen):
+**Other bash scripts** (`normalize_datasets.sh`, `build_kd_datasets.sh`) — no `--log` flags; use redirects:
+
+```bash
+./scripts/normalize_datasets.sh full > ../tin_exp/normalize.log 2>&1
+./scripts/build_kd_datasets.sh full 2>&1 | tee ../tin_exp/build_kd.log
+```
+
+**Single `tin_test` command:**
+
+```bash
+./build/release/tin_test kd -i sample_normalized -o /tmp/kd_out 2>&1 | tee kd.log
+./build/release/tin_test gen --num-objects 10 --seed 42 > run.log 2>&1
+```
+
+Append instead of overwrite: `>> logfile 2>&1` or `2>&1 | tee -a logfile`.
+
+### tcsh / csh
+
+Do **not** use `VAR=value command`, `2>&1`, or `| tee` in tcsh for these jobs.
+
+| Goal | How |
+|------|-----|
+| **Log only** | `command >& logfile` |
+| **Log + screen** | Use a script’s `--log` flag (see below), or run one bash line: `bash -c 'command 2>&1 \| tee logfile'` |
+
+**`generate_synthetic_datasets.sh`** — `--log` / `--log-only` work from tcsh (the script is bash; it handles logging internally):
 
 ```csh
-./build/release/tin_test generate --num-objects 10 --seed 42 >& run.log
-cmake --build build/release -j >& build.log
+# log only
+./scripts/generate_synthetic_datasets.sh --log-only output_synthetic/generation.log
+./scripts/generate_synthetic_datasets.sh --log-only output_synthetic/generation_full.log full
+
+# log + screen
+./scripts/generate_synthetic_datasets.sh --log output_synthetic/generation.log
 ```
 
-Append instead of overwrite: `>>& logfile`.
+**Other scripts** (`normalize_datasets.sh`, `build_kd_datasets.sh`) — log only via `>&`:
+
+```csh
+./scripts/normalize_datasets.sh full >& ../tin_exp/normalize.log
+./scripts/build_kd_datasets.sh full >& ../tin_exp/build_kd.log
+```
+
+For **log + screen** on those scripts, either use bash:
+
+```csh
+bash -c './scripts/build_kd_datasets.sh full 2>&1 | tee ../tin_exp/build_kd.log'
+```
+
+or log only with `>&` and watch with `tail -f ../tin_exp/build_kd.log` in another window.
+
+**Single `tin_test` command:**
+
+```csh
+./build/release/tin_test kd -i sample_normalized -o /tmp/kd_out >& kd.log
+```
+
+**Environment variables** — set before the command, not inline:
+
+```csh
+setenv TIN_TEST_BIN /path/to/tin_test/build/release/tin_test
+./scripts/build_kd_datasets.sh full >& build_kd.log
+```
+
+Append instead of overwrite: `command >>& logfile`.
 
 ## C++ API
 
@@ -304,5 +375,5 @@ third_party/qhull/               # created at configure (gitignored)
 | Git fetch fails on server | Copy `third_party/trimesh2` and `third_party/qhull` from another machine |
 | Very slow generation | Use **Release** build and `--quiet`; exact vertex counts need many Qhull passes per mesh — 500 vertices is much slower than 200 |
 | `Nonrepresentable section on output` linking Qhull | Pull latest CMake: only Qhull **libraries** are built (not `user_eg3` / CLI tools) |
-| `Ambiguous output redirect` with `tee` | Use csh `command >& file` or `./scripts/... --log file` (see [Logging](#logging)) |
-| `LOG_FILE=...: Command not found` | csh/tcsh: use `./scripts/... --log file` or `setenv VAR value` then run the command |
+| `Ambiguous output redirect` with `tee` | You are in tcsh: use `>&` or `--log` / `--log-only`; see [Logging](#logging) |
+| `LOG_FILE=...: Command not found` | tcsh: use `--log PATH` on `generate_synthetic_datasets.sh`, or `setenv LOG_FILE PATH` then run it from bash |
