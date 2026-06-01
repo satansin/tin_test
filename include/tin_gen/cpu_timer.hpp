@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 
 namespace tin_gen {
 
@@ -37,6 +38,9 @@ class CpuTimer {
   std::optional<std::int64_t> start_ns_;
   std::optional<std::int64_t> end_ns_;
 };
+
+/// Print elapsed CPU and wall time to stdout.
+void print_cpu_wall_timing(std::string_view label, const CpuTimer& cpu, const WallTimer& wall);
 
 /// Starts on construction; stops and prints elapsed CPU time on destruction.
 class CpuTimerReport {

@@ -123,6 +123,61 @@ Translates each mesh so the vertex mean is at the origin (subtracts the per-mesh
 | `--metadata PATH` | `<input-dir>/metadata.txt` if present | CSV like `mesh_name,cat_name,no_v,no_f` (only listed meshes are processed; copied unchanged to the output folder) |
 | `--no-metadata` | off | Ignore metadata even if `metadata.txt` exists |
 
+Folder commands (`normalize`, `kdvertices`, `pairwise_distance`) use the same mesh ordering: **metadata row order** when `metadata.txt` is present (or `--metadata PATH`), otherwise numeric order for `name_NUMBER.ply` filenames (`object_1`, `object_2`, …, `object_10`), then lexicographic.
+
+### Kdvertices options
+
+Builds a **KD-tree index** over all mesh vertices.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-i, --input-dir DIR` | (required) | Folder containing `.ply` files |
+| `-o, --output-dir DIR` | `sample_kdvertices` | Output directory |
+| `--max-objects N` | all | Process at most N meshes |
+| `--combined` | off | Write one `combined.kdtree` bundle (`TINKDB1`) instead of per-mesh files |
+| `--combined-file PATH` | `combined.kdtree` | Bundle filename with `--combined` |
+
+Default: each `object_N.ply` → `object_N.kdtree` (`TINKDV1`). With `--combined`, all trees go into a single file with a table of contents (better for loading the last N objects in one read).
+
+```bash
+./build/release/tin_test kdvertices --input-dir sample_normalized
+./build/release/tin_test kdvertices --input-dir sample_normalized --combined
+```
+
+### Distance
+
+Dissimilarity between two PLY meshes. Select the algorithm with `--algorithm` (default: `vertex`).
+
+**`--algorithm vertex`** — symmetric mean RMS nearest-vertex distance (KD-tree):
+
+- \(d_A = \sqrt{\frac{1}{|A|}\sum_{u \in A} \|u - \mathrm{NN}_B(u)\|^2}\)
+- \(d_B = \sqrt{\frac{1}{|B|}\sum_{v \in B} \|v - \mathrm{NN}_A(v)\|^2}\)
+- **distance** = \((d_A + d_B) / 2\)
+
+```bash
+./build/release/tin_test distance sample_normalized/object_1.ply sample_normalized/object_2.ply
+./build/release/tin_test distance --algorithm vertex A.ply B.ply
+```
+
+Core API: `symmetric_vertex_distance()` in `include/tin_gen/vertex_distance.hpp`.
+
+### Pairwise_distance
+
+Compute all pairwise dissimilarities for `.ply` files in a folder (same `--algorithm` as `distance`, default `vertex`). Mesh order matches `normalize` / `kdvertices` (see above). Matrix entry `(i, j)` is the distance between object `i` and object `j` (0-based indices).
+
+Default output: `sample_pd/pairwise_distances_<algorithm>.txt` (e.g. `pairwise_distances_vertex.txt`) — comment header lists object order, then `n`, then `n` rows of `n` space-separated values.
+
+```bash
+./build/release/tin_test pairwise_distance --input-dir sample_normalized
+./build/release/tin_test pairwise_distance -i sample_normalized -o sample_pd/pairwise_distances_vertex.txt
+./build/release/tin_test kdvertices --input-dir sample_normalized --output-dir sample_kdvertices
+./build/release/tin_test pd -i sample_normalized --kd-dir sample_kdvertices
+```
+
+With `--kd-dir`, KD-trees are loaded from that folder: if `combined.kdtree` exists (`kd --combined`), all trees are read from the bundle; otherwise each `object_N.kdtree` is loaded separately. Without `--kd-dir`, in-memory trees are built before the matrix; console output includes separate timing for **kd-tree build** / **kdtree load** and **matrix** computation.
+
+Command aliases: `gen` (generate), `norm` (normalize), `kd` (kdvertices), `dist` (distance), `pd` (pairwise_distance).
+
 ## Synthetic datasets script
 
 `scripts/generate_synthetic_datasets.sh` writes PLY meshes under `output_synthetic/`. It uses `build/release/tin_test` if present, otherwise `build/debug`.

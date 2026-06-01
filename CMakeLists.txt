@@ -40,12 +40,21 @@ add_library(tin_gen
   src/backends/generator.cpp
   src/commands/generate.cpp
   src/commands/normalize.cpp
+  src/commands/kdvertices.cpp
+  src/commands/distance.cpp
+  src/commands/pairwise_distance.cpp
+  src/kd_tree.cpp
+  src/vertex_distance.cpp
+  src/distance_algorithm.cpp
+  src/kdvertices_config.cpp
+  src/distance_config.cpp
+  src/pairwise_distance_config.cpp
   src/convex_hull_3d.cpp
   src/convex_hull_vertices.cpp
   src/config.cpp
   src/normalize_config.cpp
   src/cpu_timer.cpp
-  src/mesh_format.cpp
+  src/mesh_helper.cpp
   src/tin_mesh.cpp
   src/generator_save.cpp
 )

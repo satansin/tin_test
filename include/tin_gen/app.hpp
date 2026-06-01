@@ -6,12 +6,15 @@
 
 namespace tin_gen {
 
-enum class AppCommand { Generate, Normalize };
+enum class AppCommand { Generate, Normalize, KdVertices, Distance, PairwiseDistance };
 
 struct AppRequest {
   AppCommand command = AppCommand::Generate;
   GenerationConfig generate_config;
   NormalizeConfig normalize_config;
+  KdVerticesConfig kdvertices_config;
+  DistanceConfig distance_config;
+  PairwiseDistanceConfig pairwise_distance_config;
 };
 
 [[nodiscard]] AppCommand parse_app_command(std::string_view name);

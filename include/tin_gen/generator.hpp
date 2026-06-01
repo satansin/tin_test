@@ -1,7 +1,7 @@
 #pragma once
 
 #include "tin_gen/config.hpp"
-#include "tin_gen/mesh_format.hpp"
+#include "tin_gen/mesh_helper.hpp"
 #include "tin_gen/tin_mesh.hpp"
 
 #include <cstddef>

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "tin_gen/mesh_format.hpp"
+#include "tin_gen/mesh_helper.hpp"
 
 #include <array>
 #include <cstddef>

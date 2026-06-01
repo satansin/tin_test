@@ -1,5 +1,6 @@
 #include "tin_gen/commands/normalize.hpp"
 
+#include "tin_gen/mesh_helper.hpp"
 #include "tin_gen/tin_mesh.hpp"
 
 #include <cstdlib>
@@ -7,95 +8,14 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <sstream>
 #include <stdexcept>
 #include <string>
-#include <algorithm>
-#include <unordered_set>
 #include <vector>
 
 namespace tin_gen {
 namespace fs = std::filesystem;
 
 namespace {
-
-std::string trim(std::string s) {
-  auto is_space = [](unsigned char c) { return std::isspace(c) != 0; };
-  while (!s.empty() && is_space(static_cast<unsigned char>(s.front()))) {
-    s.erase(s.begin());
-  }
-  while (!s.empty() && is_space(static_cast<unsigned char>(s.back()))) {
-    s.pop_back();
-  }
-  return s;
-}
-
-std::unordered_set<std::string> read_metadata_mesh_names(const std::string& filepath) {
-  std::ifstream in(filepath);
-  if (!in) {
-    throw std::runtime_error("Failed to open metadata file: " + filepath);
-  }
-
-  std::unordered_set<std::string> names;
-  std::string line;
-  bool first = true;
-  while (std::getline(in, line)) {
-    line = trim(line);
-    if (line.empty()) {
-      continue;
-    }
-    if (first) {
-      // optional header
-      first = false;
-      if (line.find("mesh_name") != std::string::npos) {
-        continue;
-      }
-    }
-    std::istringstream iss(line);
-    std::string mesh_name;
-    if (!std::getline(iss, mesh_name, ',')) {
-      continue;
-    }
-    mesh_name = trim(mesh_name);
-    if (!mesh_name.empty()) {
-      names.insert(mesh_name);
-    }
-  }
-  return names;
-}
-
-std::vector<std::string> read_metadata_mesh_list(const std::string& filepath) {
-  std::ifstream in(filepath);
-  if (!in) {
-    throw std::runtime_error("Failed to open metadata file: " + filepath);
-  }
-
-  std::vector<std::string> names;
-  std::string line;
-  bool first = true;
-  while (std::getline(in, line)) {
-    line = trim(line);
-    if (line.empty()) {
-      continue;
-    }
-    if (first) {
-      first = false;
-      if (line.find("mesh_name") != std::string::npos) {
-        continue;
-      }
-    }
-    std::istringstream iss(line);
-    std::string mesh_name;
-    if (!std::getline(iss, mesh_name, ',')) {
-      continue;
-    }
-    mesh_name = trim(mesh_name);
-    if (!mesh_name.empty()) {
-      names.push_back(mesh_name);
-    }
-  }
-  return names;
-}
 
 void zero_center(TinMesh& mesh) {
   if (mesh.vertices.empty()) {
@@ -119,25 +39,6 @@ void zero_center(TinMesh& mesh) {
   }
 }
 
-std::optional<fs::path> resolve_metadata_path(const NormalizeConfig& config,
-                                             const fs::path& input_dir) {
-  if (!config.use_metadata) {
-    return std::nullopt;
-  }
-  if (config.metadata_path) {
-    const fs::path path(*config.metadata_path);
-    if (!fs::exists(path)) {
-      throw std::runtime_error("normalize: metadata file not found: " + path.string());
-    }
-    return path;
-  }
-  const fs::path default_path = input_dir / "metadata.txt";
-  if (fs::exists(default_path)) {
-    return default_path;
-  }
-  return std::nullopt;
-}
-
 }  // namespace
 
 int run_normalize(const NormalizeConfig& config) {
@@ -153,57 +54,21 @@ int run_normalize(const NormalizeConfig& config) {
   }
   fs::create_directories(output_dir);
 
-  const std::optional<fs::path> metadata_path = resolve_metadata_path(config, input_dir);
-
-  std::optional<std::unordered_set<std::string>> whitelist;
-  std::vector<std::string> metadata_order;
-  if (metadata_path) {
-    whitelist = read_metadata_mesh_names(metadata_path->string());
-    if (whitelist->empty()) {
-      throw std::runtime_error("normalize: metadata file had no mesh entries: " +
-                               metadata_path->string());
-    }
-    metadata_order = read_metadata_mesh_list(metadata_path->string());
+  ListPlyFilesOptions list_opts;
+  list_opts.max_objects = config.max_objects;
+  list_opts.use_metadata = config.use_metadata;
+  if (config.metadata_path) {
+    list_opts.metadata_path = fs::path(*config.metadata_path);
   }
 
   std::vector<fs::path> ply_files;
-  if (!metadata_order.empty()) {
-    // Follow metadata order, but only include files that exist.
-    for (const auto& filename : metadata_order) {
-      if (whitelist && whitelist->find(filename) == whitelist->end()) {
-        continue;
-      }
-      const fs::path p = input_dir / filename;
-      if (fs::exists(p) && fs::is_regular_file(p)) {
-        ply_files.push_back(p);
-      }
-    }
-  } else {
-    for (const auto& entry : fs::directory_iterator(input_dir)) {
-      if (!entry.is_regular_file()) {
-        continue;
-      }
-      const fs::path p = entry.path();
-      if (p.extension() != ".ply") {
-        continue;
-      }
-      const std::string filename = p.filename().string();
-      if (whitelist && whitelist->find(filename) == whitelist->end()) {
-        continue;
-      }
-      ply_files.push_back(p);
-    }
-    std::sort(ply_files.begin(), ply_files.end(),
-              [](const fs::path& a, const fs::path& b) { return a.filename() < b.filename(); });
+  try {
+    ply_files = list_ply_files_in_directory(input_dir, list_opts);
+  } catch (const std::runtime_error& error) {
+    throw std::runtime_error(std::string("normalize: ") + error.what());
   }
 
-  if (ply_files.empty()) {
-    throw std::runtime_error("normalize: no .ply files found in " + input_dir.string());
-  }
-
-  if (config.max_objects > 0 && ply_files.size() > config.max_objects) {
-    ply_files.resize(config.max_objects);
-  }
+  const std::optional<fs::path> metadata_path = resolve_metadata_path(input_dir, list_opts);
 
   std::size_t normalized_count = 0;
   for (const auto& ply_path : ply_files) {

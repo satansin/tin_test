@@ -1,6 +1,7 @@
 #include "tin_gen/cpu_timer.hpp"
 
 #include <ctime>
+#include <iomanip>
 #include <iostream>
 #include <stdexcept>
 
@@ -136,6 +137,14 @@ double CpuTimer::elapsed_seconds() const {
 
 double CpuTimer::elapsed_milliseconds() const {
   return static_cast<double>(elapsed_nanoseconds()) / 1e6;
+}
+
+void print_cpu_wall_timing(const std::string_view label, const CpuTimer& cpu,
+                           const WallTimer& wall) {
+  std::cout << std::fixed << std::setprecision(3);
+  std::cout << label << " timing:\n"
+            << "  CPU time: " << cpu.elapsed_milliseconds() << " ms\n"
+            << "  Wall time: " << wall.elapsed_milliseconds() << " ms\n";
 }
 
 CpuTimerReport::CpuTimerReport(std::string label) : label_(std::move(label)) { timer_.start(); }
