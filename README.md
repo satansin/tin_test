@@ -178,6 +178,24 @@ With `--kd-dir`, KD-trees are loaded from that folder: if `combined.kdtree` exis
 
 Command aliases: `gen` (generate), `norm` (normalize), `kd` (kdvertices), `dist` (distance), `pd` (pairwise_distance).
 
+## Experiment dataset scripts (`../tin_exp/`)
+
+Requires a sibling `tin_exp` directory. Uses `build/release/tin_test` when present, else `build/debug` (override with `TIN_TEST_BIN`).
+
+| Script | Input | Output |
+|--------|--------|--------|
+| `scripts/normalize_datasets.sh` | `output_synthetic/`, `../tin_exp/datasets_raw/` | `../tin_exp/datasets_normalized/<name>/` |
+| `scripts/build_kd_datasets.sh` | `../tin_exp/datasets_normalized/<name>/` | `../tin_exp/datasets_norm_kd/<name>/` |
+
+```bash
+./scripts/normalize_datasets.sh          # small (default)
+./scripts/normalize_datasets.sh full
+./scripts/build_kd_datasets.sh           # after normalize
+./scripts/build_kd_datasets.sh full
+```
+
+`build_kd_datasets.sh` runs `tin_test kd --combined` on each normalized subfolder and writes one bundle per dataset (e.g. `datasets_norm_kd/modelnet40/combined.kdtree`).
+
 ## Synthetic datasets script
 
 `scripts/generate_synthetic_datasets.sh` writes PLY meshes under `output_synthetic/`. It uses `build/release/tin_test` if present, otherwise `build/debug`.
