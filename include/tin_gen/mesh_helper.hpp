@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <optional>
@@ -48,5 +49,30 @@ struct ListPlyFilesOptions {
 /// `name_NUMBER.ply` order (then lexicographic). Applies @p opts.max_objects after ordering.
 [[nodiscard]] std::vector<std::filesystem::path> list_ply_files_in_directory(
     const std::filesystem::path& input_dir, ListPlyFilesOptions opts = {});
+
+// --- Folder mesh load progress (normalize / kdvertices / pairwise_distance) ---
+
+inline constexpr std::size_t kFolderMeshLoadProgressInterval = 2000;
+
+/// Current process resident memory (best effort; 0 if unavailable).
+[[nodiscard]] std::size_t current_process_resident_bytes();
+
+/// Reports @p loaded / @p total, elapsed seconds, and resident memory to stdout.
+void report_folder_mesh_load_progress(std::size_t loaded, std::size_t total,
+                                      double elapsed_seconds, std::string_view label);
+
+/// Call mark_loaded(1..total) after each mesh file is read from disk.
+class FolderMeshLoadProgress {
+ public:
+  FolderMeshLoadProgress(std::size_t total, std::string_view label = "mesh files");
+
+  /// @p loaded is the number of files read so far (1-based, up to total).
+  void mark_loaded(std::size_t loaded);
+
+ private:
+  std::size_t total_ = 0;
+  std::string label_;
+  std::chrono::steady_clock::time_point start_;
+};
 
 }  // namespace tin_gen

@@ -186,10 +186,13 @@ int run_pairwise_distance(const PairwiseDistanceConfig& config) {
     throw std::runtime_error(std::string("pairwise_distance: ") + error.what());
   }
 
+  FolderMeshLoadProgress load_progress(ply_files.size(), "pairwise_distance mesh files");
+
   std::vector<MeshIndex> meshes;
   meshes.reserve(ply_files.size());
-  for (const auto& ply_path : ply_files) {
-    meshes.push_back(load_mesh_vertices(ply_path));
+  for (std::size_t i = 0; i < ply_files.size(); ++i) {
+    meshes.push_back(load_mesh_vertices(ply_files[i]));
+    load_progress.mark_loaded(i + 1);
   }
 
   LoadKdTreesFromFolderResult loaded_kdtrees;

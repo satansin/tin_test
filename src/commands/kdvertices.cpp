@@ -55,19 +55,23 @@ int run_kdvertices(const KdVerticesConfig& config) {
   std::vector<MeshPoints> meshes;
   meshes.reserve(ply_files.size());
 
+  FolderMeshLoadProgress load_progress(ply_files.size(), "kdvertices mesh files");
+
   CpuTimer cpu_read;
   WallTimer wall_read;
   cpu_read.start();
   wall_read.start();
-  for (const auto& ply_path : ply_files) {
-    const TinMesh mesh = read_ply(ply_path.string());
+  for (std::size_t i = 0; i < ply_files.size(); ++i) {
+    const TinMesh mesh = read_ply(ply_files[i].string());
     if (mesh.vertices.empty()) {
-      throw std::runtime_error("kdvertices: mesh has no vertices: " + ply_path.string());
+      throw std::runtime_error("kdvertices: mesh has no vertices: " +
+                               ply_files[i].string());
     }
     MeshPoints entry;
-    entry.name = ply_path.stem().string();
+    entry.name = ply_files[i].stem().string();
     entry.points = mesh_to_points(mesh);
     meshes.push_back(std::move(entry));
+    load_progress.mark_loaded(i + 1);
   }
   cpu_read.stop();
   wall_read.stop();

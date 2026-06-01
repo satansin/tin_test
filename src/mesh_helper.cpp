@@ -2,11 +2,20 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
+#include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+
+#if defined(__APPLE__)
+#include <mach/mach.h>
+#elif defined(__linux__)
+#include <unistd.h>
+#endif
 
 namespace tin_gen {
 namespace fs = std::filesystem;
@@ -198,6 +207,73 @@ std::vector<fs::path> list_ply_files_in_directory(const fs::path& input_dir,
   }
 
   return ply_files;
+}
+
+namespace {
+
+double elapsed_seconds_since(const std::chrono::steady_clock::time_point start) {
+  const std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+  return std::chrono::duration<double>(now - start).count();
+}
+
+}  // namespace
+
+std::size_t current_process_resident_bytes() {
+#if defined(__APPLE__)
+  mach_task_basic_info info{};
+  mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
+  if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO,
+                reinterpret_cast<task_info_t>(&info), &count) != KERN_SUCCESS) {
+    return 0;
+  }
+  return static_cast<std::size_t>(info.resident_size);
+#elif defined(__linux__)
+  std::ifstream statm("/proc/self/statm");
+  std::size_t total_pages = 0;
+  std::size_t resident_pages = 0;
+  statm >> total_pages >> resident_pages;
+  if (!statm) {
+    return 0;
+  }
+  const long page_size = sysconf(_SC_PAGESIZE);
+  if (page_size <= 0) {
+    return 0;
+  }
+  return resident_pages * static_cast<std::size_t>(page_size);
+#else
+  return 0;
+#endif
+}
+
+void report_folder_mesh_load_progress(const std::size_t loaded, const std::size_t total,
+                                      const double elapsed_seconds,
+                                      const std::string_view label) {
+  const std::size_t resident = current_process_resident_bytes();
+  std::cout << std::fixed << std::setprecision(6);
+  std::cout << label << ": loaded " << loaded << '/' << total << "  elapsed " << elapsed_seconds
+            << " s";
+  if (resident > 0) {
+    std::cout << std::setprecision(2) << "  memory " << (static_cast<double>(resident) / 1e6)
+              << " MB";
+  }
+  std::cout << '\n';
+}
+
+FolderMeshLoadProgress::FolderMeshLoadProgress(const std::size_t total,
+                                               const std::string_view label)
+    : total_(total), label_(label), start_(std::chrono::steady_clock::now()) {}
+
+void FolderMeshLoadProgress::mark_loaded(const std::size_t loaded) {
+  if (total_ == 0 || loaded == 0 || loaded > total_) {
+    return;
+  }
+  const bool at_interval =
+      loaded % kFolderMeshLoadProgressInterval == 0;
+  const bool at_end = loaded == total_;
+  if (!at_interval && !at_end) {
+    return;
+  }
+  report_folder_mesh_load_progress(loaded, total_, elapsed_seconds_since(start_), label_);
 }
 
 }  // namespace tin_gen

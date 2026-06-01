@@ -70,9 +70,13 @@ int run_normalize(const NormalizeConfig& config) {
 
   const std::optional<fs::path> metadata_path = resolve_metadata_path(input_dir, list_opts);
 
+  FolderMeshLoadProgress load_progress(ply_files.size(), "normalize mesh files");
+
   std::size_t normalized_count = 0;
-  for (const auto& ply_path : ply_files) {
+  for (std::size_t i = 0; i < ply_files.size(); ++i) {
+    const fs::path& ply_path = ply_files[i];
     TinMesh mesh = read_ply(ply_path.string());
+    load_progress.mark_loaded(i + 1);
     zero_center(mesh);
 
     const fs::path out_path = output_dir / ply_path.filename();
