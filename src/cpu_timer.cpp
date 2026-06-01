@@ -141,10 +141,10 @@ double CpuTimer::elapsed_milliseconds() const {
 
 void print_cpu_wall_timing(const std::string_view label, const CpuTimer& cpu,
                            const WallTimer& wall) {
-  std::cout << std::fixed << std::setprecision(3);
+  std::cout << std::fixed << std::setprecision(6);
   std::cout << label << " timing:\n"
-            << "  CPU time: " << cpu.elapsed_milliseconds() << " ms\n"
-            << "  Wall time: " << wall.elapsed_milliseconds() << " ms\n";
+            << "  CPU time: " << cpu.elapsed_seconds() << " s\n"
+            << "  Wall time: " << wall.elapsed_seconds() << " s\n";
 }
 
 CpuTimerReport::CpuTimerReport(std::string label) : label_(std::move(label)) { timer_.start(); }
@@ -156,7 +156,8 @@ CpuTimerReport::~CpuTimerReport() {
   if (timer_.is_running()) {
     timer_.stop();
   }
-  std::cout << label_ << " CPU time: " << timer_.elapsed_milliseconds() << " ms\n";
+  std::cout << std::fixed << std::setprecision(6);
+  std::cout << label_ << " CPU time: " << timer_.elapsed_seconds() << " s\n";
 }
 
 CpuTimer& CpuTimerReport::timer() { return timer_; }

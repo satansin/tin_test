@@ -1,10 +1,10 @@
 #include "tin_gen/commands/kdvertices.hpp"
 
+#include "tin_gen/cpu_timer.hpp"
 #include "tin_gen/kd_tree.hpp"
 #include "tin_gen/mesh_helper.hpp"
 #include "tin_gen/tin_mesh.hpp"
 
-#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
@@ -14,6 +14,24 @@
 
 namespace tin_gen {
 namespace fs = std::filesystem;
+
+namespace {
+
+struct MeshPoints {
+  std::string name;
+  std::vector<KdTree3d::Point> points;
+};
+
+std::vector<KdTree3d::Point> mesh_to_points(const TinMesh& mesh) {
+  std::vector<KdTree3d::Point> points;
+  points.reserve(mesh.vertices.size());
+  for (const auto& v : mesh.vertices) {
+    points.push_back(v);
+  }
+  return points;
+}
+
+}  // namespace
 
 int run_kdvertices(const KdVerticesConfig& config) {
   const fs::path input_dir(config.input_dir);
@@ -34,42 +52,70 @@ int run_kdvertices(const KdVerticesConfig& config) {
     throw std::runtime_error(std::string("kdvertices: ") + error.what());
   }
 
-  std::vector<KdTreeBundleEntry> bundle_entries;
-  bundle_entries.reserve(ply_files.size());
+  std::vector<MeshPoints> meshes;
+  meshes.reserve(ply_files.size());
 
+  CpuTimer cpu_read;
+  WallTimer wall_read;
+  cpu_read.start();
+  wall_read.start();
   for (const auto& ply_path : ply_files) {
     const TinMesh mesh = read_ply(ply_path.string());
     if (mesh.vertices.empty()) {
       throw std::runtime_error("kdvertices: mesh has no vertices: " + ply_path.string());
     }
-
-    std::vector<KdTree3d::Point> points;
-    points.reserve(mesh.vertices.size());
-    for (const auto& v : mesh.vertices) {
-      points.push_back(v);
-    }
-
-    KdTreeBundleEntry entry;
+    MeshPoints entry;
     entry.name = ply_path.stem().string();
-    entry.tree = KdTree3d(std::move(points));
+    entry.points = mesh_to_points(mesh);
+    meshes.push_back(std::move(entry));
+  }
+  cpu_read.stop();
+  wall_read.stop();
 
-    if (config.combined_output) {
-      bundle_entries.push_back(std::move(entry));
-    } else {
+  std::vector<KdTreeBundleEntry> built;
+  built.reserve(meshes.size());
+
+  CpuTimer cpu_build;
+  WallTimer wall_build;
+  cpu_build.start();
+  wall_build.start();
+  for (const auto& mesh : meshes) {
+    KdTreeBundleEntry entry;
+    entry.name = mesh.name;
+    entry.tree = KdTree3d(mesh.points);
+    built.push_back(std::move(entry));
+  }
+  cpu_build.stop();
+  wall_build.stop();
+
+  CpuTimer cpu_save;
+  WallTimer wall_save;
+  cpu_save.start();
+  wall_save.start();
+  if (config.combined_output) {
+    const fs::path out_path = output_dir / config.combined_file;
+    save_kd_tree_bundle(out_path.string(), built);
+  } else {
+    for (const auto& entry : built) {
       const fs::path out_path = output_dir / (entry.name + ".kdtree");
       entry.tree.save(out_path.string());
     }
   }
+  cpu_save.stop();
+  wall_save.stop();
 
+  std::cout << "kdvertices\n"
+            << "  input: " << input_dir.string() << " (" << built.size() << " meshes)\n"
+            << "  output: " << output_dir.string();
   if (config.combined_output) {
-    const fs::path out_path = output_dir / config.combined_file;
-    save_kd_tree_bundle(out_path.string(), bundle_entries);
-    std::cout << "Built combined KD-tree bundle (" << bundle_entries.size()
-              << " trees) at " << out_path.string() << '\n';
+    std::cout << " (" << config.combined_file << ")\n";
   } else {
-    std::cout << "Built " << ply_files.size() << " KD-tree index file(s) in "
-              << output_dir.string() << '\n';
+    std::cout << " (per-mesh .kdtree)\n";
   }
+  print_cpu_wall_timing("kdvertices read mesh files", cpu_read, wall_read);
+  print_cpu_wall_timing("kdvertices build kd-trees", cpu_build, wall_build);
+  print_cpu_wall_timing("kdvertices save to file", cpu_save, wall_save);
+
   return EXIT_SUCCESS;
 }
 
