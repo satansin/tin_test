@@ -42,12 +42,13 @@ int run_kdvertices(const KdVerticesConfig& config) {
   }
   fs::create_directories(output_dir);
 
-  ListPlyFilesOptions list_opts;
+  ListMeshFilesOptions list_opts;
   list_opts.max_objects = config.max_objects;
+  list_opts.extension = mesh_format_extension(MeshFormat::Ply);
 
   std::vector<fs::path> ply_files;
   try {
-    ply_files = list_ply_files_in_directory(input_dir, list_opts);
+    ply_files = list_mesh_files_in_directory(input_dir, list_opts);
   } catch (const std::runtime_error& error) {
     throw std::runtime_error(std::string("kdvertices: ") + error.what());
   }

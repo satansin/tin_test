@@ -26,12 +26,6 @@ std::optional<NormalizeConfig> parse_normalize_config(const int argc, char* argv
       config.output_dir = need_value(arg.c_str());
     } else if (arg == "--max-objects" || arg == "--limit") {
       config.max_objects = static_cast<std::size_t>(std::stoull(need_value(arg.c_str())));
-    } else if (arg == "--metadata") {
-      config.use_metadata = true;
-      config.metadata_path = need_value("--metadata");
-    } else if (arg == "--no-metadata") {
-      config.use_metadata = false;
-      config.metadata_path.reset();
     } else if (!arg.empty() && arg[0] != '-' && config.input_dir.empty()) {
       // Allow: tin_test normalize <input_dir>
       config.input_dir = arg;

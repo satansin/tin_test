@@ -96,8 +96,29 @@ struct PlyVertexProp {
 struct PlyFacePropList {
   std::string name;
   std::string count_type;
-  std::string index_type;
+  std::string value_type;
 };
+
+struct PlyFacePropScalar {
+  std::string name;
+  std::string type;
+};
+
+struct PlyFaceProp {
+  bool is_list = false;
+  PlyFacePropList list{};
+  PlyFacePropScalar scalar{};
+};
+
+void triangulate_face_indices(const std::vector<std::size_t>& idx, TinMesh& mesh) {
+  if (idx.size() < 3) {
+    return;
+  }
+  const std::size_t v0 = idx[0];
+  for (std::size_t k = 1; k + 1 < idx.size(); ++k) {
+    mesh.faces.push_back({v0, idx[k], idx[k + 1]});
+  }
+}
 
 }  // namespace
 
@@ -116,11 +137,14 @@ TinMesh read_ply(const std::string& filepath) {
   std::size_t face_count = 0;
   PlyFormat format = PlyFormat::Ascii;
   std::vector<PlyVertexProp> vertex_props;
-  std::optional<PlyFacePropList> face_list_prop;
+  std::vector<PlyFaceProp> face_props;
   bool in_vertex_element = false;
   bool in_face_element = false;
 
   while (std::getline(in, line)) {
+    if (!line.empty() && line.back() == '\r') {
+      line.pop_back();
+    }
     if (line == "end_header") {
       break;
     }
@@ -153,7 +177,7 @@ TinMesh read_ply(const std::string& filepath) {
         vertex_props.clear();
       }
       if (in_face_element) {
-        face_list_prop.reset();
+        face_props.clear();
       }
       if (in_vertex_element) {
         vertex_count = count;
@@ -173,13 +197,23 @@ TinMesh read_ply(const std::string& filepath) {
         iss >> maybe_list;
         if (maybe_list == "list") {
           std::string count_type;
-          std::string index_type;
+          std::string value_type;
           std::string name;
-          iss >> count_type >> index_type >> name;
-          if (!count_type.empty() && !index_type.empty() && !name.empty()) {
-            if (name == "vertex_indices" || name == "vertex_index") {
-              face_list_prop = PlyFacePropList{name, count_type, index_type};
-            }
+          iss >> count_type >> value_type >> name;
+          if (!count_type.empty() && !value_type.empty() && !name.empty()) {
+            PlyFaceProp prop;
+            prop.is_list = true;
+            prop.list = PlyFacePropList{name, count_type, value_type};
+            face_props.push_back(prop);
+          }
+        } else if (!maybe_list.empty()) {
+          std::string name;
+          iss >> name;
+          if (!name.empty()) {
+            PlyFaceProp prop;
+            prop.is_list = false;
+            prop.scalar = PlyFacePropScalar{name, maybe_list};
+            face_props.push_back(prop);
           }
         }
       }
@@ -238,25 +272,39 @@ TinMesh read_ply(const std::string& filepath) {
         throw std::runtime_error("Unexpected EOF while reading faces: " + filepath);
       }
       std::istringstream iss(line);
-      int n = 0;
-      if (!(iss >> n)) {
-        throw std::runtime_error("Failed to parse face line: " + filepath);
-      }
-      if (n < 3) {
-        continue;
-      }
-      std::vector<std::size_t> idx;
-      idx.reserve(static_cast<std::size_t>(n));
-      for (int k = 0; k < n; ++k) {
-        std::size_t v = 0;
-        if (!(iss >> v)) {
-          throw std::runtime_error("Failed to parse face indices: " + filepath);
+      for (const auto& prop : face_props) {
+        if (prop.is_list) {
+          int n = 0;
+          if (!(iss >> n)) {
+            throw std::runtime_error("Failed to parse face list count: " + filepath);
+          }
+          if (prop.list.name == "vertex_indices" || prop.list.name == "vertex_index") {
+            std::vector<std::size_t> idx;
+            if (n > 0) {
+              idx.reserve(static_cast<std::size_t>(n));
+            }
+            for (int k = 0; k < n; ++k) {
+              std::size_t v = 0;
+              if (!(iss >> v)) {
+                throw std::runtime_error("Failed to parse face indices: " + filepath);
+              }
+              idx.push_back(v);
+            }
+            triangulate_face_indices(idx, mesh);
+          } else {
+            double v = 0.0;
+            for (int k = 0; k < n; ++k) {
+              if (!(iss >> v)) {
+                throw std::runtime_error("Failed to parse face list values: " + filepath);
+              }
+            }
+          }
+        } else {
+          double v = 0.0;
+          if (!(iss >> v)) {
+            throw std::runtime_error("Failed to parse face property: " + filepath);
+          }
         }
-        idx.push_back(v);
-      }
-      const std::size_t v0 = idx[0];
-      for (std::size_t k = 1; k + 1 < idx.size(); ++k) {
-        mesh.faces.push_back({v0, idx[k], idx[k + 1]});
       }
     }
   } else {
@@ -277,27 +325,27 @@ TinMesh read_ply(const std::string& filepath) {
     }
 
     if (face_count > 0) {
-      if (!face_list_prop) {
-        throw std::runtime_error("PLY face element present but missing vertex_indices list: " +
-                                 filepath);
-      }
       for (std::size_t i = 0; i < face_count; ++i) {
-        const std::size_t n = read_index_as_size_t(in, face_list_prop->count_type, swap_endian);
-        if (n < 3) {
-          // still need to consume indices
-          for (std::size_t k = 0; k < n; ++k) {
-            (void)read_index_as_size_t(in, face_list_prop->index_type, swap_endian);
+        for (const auto& prop : face_props) {
+          if (prop.is_list) {
+            const std::size_t n = read_index_as_size_t(in, prop.list.count_type, swap_endian);
+            if (prop.list.name == "vertex_indices" || prop.list.name == "vertex_index") {
+              std::vector<std::size_t> idx;
+              if (n > 0) {
+                idx.reserve(n);
+              }
+              for (std::size_t k = 0; k < n; ++k) {
+                idx.push_back(read_index_as_size_t(in, prop.list.value_type, swap_endian));
+              }
+              triangulate_face_indices(idx, mesh);
+            } else {
+              for (std::size_t k = 0; k < n; ++k) {
+                (void)read_scalar_as_double(in, prop.list.value_type, swap_endian);
+              }
+            }
+          } else {
+            (void)read_scalar_as_double(in, prop.scalar.type, swap_endian);
           }
-          continue;
-        }
-        std::vector<std::size_t> idx;
-        idx.reserve(n);
-        for (std::size_t k = 0; k < n; ++k) {
-          idx.push_back(read_index_as_size_t(in, face_list_prop->index_type, swap_endian));
-        }
-        const std::size_t v0 = idx[0];
-        for (std::size_t k = 1; k + 1 < idx.size(); ++k) {
-          mesh.faces.push_back({v0, idx[k], idx[k + 1]});
         }
       }
     }

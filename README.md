@@ -85,7 +85,7 @@ No arguments prints usage.
 ./build/release/tin_test
 ./build/release/tin_test generate
 ./build/release/tin_test generate --format obj --seed 42 --num-objects 5
-./build/release/tin_test normalize --input-dir sample_gen --no-metadata
+./build/release/tin_test normalize --input-dir sample_gen
 ./build/release/tin_test help
 ```
 
@@ -120,10 +120,9 @@ Translates each mesh so the vertex mean is at the origin (subtracts the per-mesh
 |------|---------|-------------|
 | `-i, --input-dir DIR` | (required) | Folder containing `.ply` files |
 | `-o, --output-dir DIR` | `sample_normalized` | Output folder for normalized `.ply` files |
-| `--metadata PATH` | `<input-dir>/metadata.txt` if present | CSV like `mesh_name,cat_name,no_v,no_f` (only listed meshes are processed; copied unchanged to the output folder) |
-| `--no-metadata` | off | Ignore metadata even if `metadata.txt` exists |
+| `--max-objects N` | all | Normalize at most N meshes |
 
-Folder commands (`normalize`, `kdvertices`, `pairwise_distance`) use the same mesh ordering: **metadata row order** when `metadata.txt` is present (or `--metadata PATH`), otherwise numeric order for `name_NUMBER.ply` filenames (`object_1`, `object_2`, …, `object_10`), then lexicographic.
+Folder commands (`normalize`, `kdvertices`, `pairwise_distance`) list every matching mesh file in the input directory (`.ply` by default), sorted by numeric `name_NUMBER` suffix when present (`object_1`, `object_2`, …, `object_10`), otherwise lexicographic by filename. A `metadata.txt` file in the folder is ignored.
 
 ### Kdvertices options
 

@@ -22,9 +22,6 @@ struct GenerationConfig {
 struct NormalizeConfig {
   std::string input_dir;
   std::string output_dir = "sample_normalized";
-  /// When true, use metadata_path if set, else <input-dir>/metadata.txt when present.
-  bool use_metadata = true;
-  std::optional<std::string> metadata_path;
   std::size_t max_objects = 0;  // 0 = all
 };
 

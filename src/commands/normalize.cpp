@@ -6,7 +6,6 @@
 #include <cstdlib>
 #include <cctype>
 #include <filesystem>
-#include <fstream>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -54,44 +53,44 @@ int run_normalize(const NormalizeConfig& config) {
   }
   fs::create_directories(output_dir);
 
-  ListPlyFilesOptions list_opts;
+  ListMeshFilesOptions list_opts;
   list_opts.max_objects = config.max_objects;
-  list_opts.use_metadata = config.use_metadata;
-  if (config.metadata_path) {
-    list_opts.metadata_path = fs::path(*config.metadata_path);
-  }
+  list_opts.extension = mesh_format_extension(MeshFormat::Ply);
 
   std::vector<fs::path> ply_files;
   try {
-    ply_files = list_ply_files_in_directory(input_dir, list_opts);
+    ply_files = list_mesh_files_in_directory(input_dir, list_opts);
   } catch (const std::runtime_error& error) {
     throw std::runtime_error(std::string("normalize: ") + error.what());
   }
 
-  const std::optional<fs::path> metadata_path = resolve_metadata_path(input_dir, list_opts);
-
   FolderMeshLoadProgress load_progress(ply_files.size(), "normalize mesh files");
 
   std::size_t normalized_count = 0;
+  std::size_t skipped_count = 0;
   for (std::size_t i = 0; i < ply_files.size(); ++i) {
     const fs::path& ply_path = ply_files[i];
-    TinMesh mesh = read_ply(ply_path.string());
+    try {
+      TinMesh mesh = read_ply(ply_path.string());
+      zero_center(mesh);
+
+      const fs::path out_path = output_dir / ply_path.filename();
+      write_mesh(out_path.string(), mesh, MeshFormat::Ply);
+      ++normalized_count;
+    } catch (const std::exception& error) {
+      std::cerr << "Warning: skipping " << ply_path.filename().string() << ": " << error.what()
+                << '\n';
+      ++skipped_count;
+    }
     load_progress.mark_loaded(i + 1);
-    zero_center(mesh);
-
-    const fs::path out_path = output_dir / ply_path.filename();
-    write_mesh(out_path.string(), mesh, MeshFormat::Ply);
-    ++normalized_count;
-  }
-
-  if (metadata_path) {
-    const fs::path meta_dst = output_dir / metadata_path->filename();
-    fs::copy_file(*metadata_path, meta_dst, fs::copy_options::overwrite_existing);
-    std::cout << "Copied metadata to " << meta_dst.string() << '\n';
   }
 
   std::cout << "Normalized " << normalized_count << " mesh(es) to " << output_dir.string()
-            << " (translation only: zero-centered by vertex mean)\n";
+            << " (translation only: zero-centered by vertex mean)";
+  if (skipped_count > 0) {
+    std::cout << "; skipped " << skipped_count << " file(s) due to errors";
+  }
+  std::cout << '\n';
   return EXIT_SUCCESS;
 }
 

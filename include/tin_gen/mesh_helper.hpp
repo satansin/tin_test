@@ -31,24 +31,20 @@ enum class MeshFormat { Ply, Obj };
 
 void sort_mesh_paths_by_filename(std::vector<std::filesystem::path>& paths);
 
-struct ListPlyFilesOptions {
+/// Normalizes @p ext to a lowercase extension including the leading dot (e.g. `ply` -> `.ply`).
+[[nodiscard]] std::string normalize_mesh_extension(std::string_view ext);
+
+struct ListMeshFilesOptions {
   std::size_t max_objects = 0;
-  /// When true, use @p metadata_path if set, else `<input-dir>/metadata.txt` when present.
-  bool use_metadata = true;
-  std::optional<std::filesystem::path> metadata_path;
+  /// File extension filter (default `.ply`). Accepts `ply` or `.ply`.
+  std::string extension = ".ply";
 };
 
-/// Resolve metadata CSV path from options (explicit path or default under input dir).
-[[nodiscard]] std::optional<std::filesystem::path> resolve_metadata_path(
-    const std::filesystem::path& input_dir, const ListPlyFilesOptions& opts);
-
-/// Read mesh filenames in metadata file order (CSV first column: mesh_name).
-[[nodiscard]] std::vector<std::string> read_metadata_mesh_list(const std::filesystem::path& path);
-
-/// List `.ply` files in @p input_dir. With metadata: metadata row order; otherwise numeric
-/// `name_NUMBER.ply` order (then lexicographic). Applies @p opts.max_objects after ordering.
-[[nodiscard]] std::vector<std::filesystem::path> list_ply_files_in_directory(
-    const std::filesystem::path& input_dir, ListPlyFilesOptions opts = {});
+/// List regular files in @p input_dir with @p opts.extension. Sorted by numeric
+/// `name_NUMBER.ext` when applicable, otherwise lexicographic. Applies @p opts.max_objects after
+/// ordering.
+[[nodiscard]] std::vector<std::filesystem::path> list_mesh_files_in_directory(
+    const std::filesystem::path& input_dir, ListMeshFilesOptions opts = {});
 
 // --- Folder mesh load progress (normalize / kdvertices / pairwise_distance) ---
 

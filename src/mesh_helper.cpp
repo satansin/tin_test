@@ -115,98 +115,54 @@ void sort_mesh_paths_by_filename(std::vector<fs::path>& paths) {
   std::sort(paths.begin(), paths.end(), compare_mesh_paths_by_filename);
 }
 
-std::optional<fs::path> resolve_metadata_path(const fs::path& input_dir,
-                                              const ListPlyFilesOptions& opts) {
-  if (!opts.use_metadata) {
-    return std::nullopt;
+std::string normalize_mesh_extension(const std::string_view ext) {
+  std::string normalized(ext);
+  normalized = trim(normalized);
+  if (normalized.empty()) {
+    throw std::invalid_argument("mesh file extension must not be empty");
   }
-  if (opts.metadata_path) {
-    const fs::path path = *opts.metadata_path;
-    if (!fs::exists(path)) {
-      throw std::runtime_error("metadata file not found: " + path.string());
-    }
-    return path;
+  if (normalized.front() != '.') {
+    normalized.insert(normalized.begin(), '.');
   }
-  const fs::path default_path = input_dir / "metadata.txt";
-  if (fs::exists(default_path)) {
-    return default_path;
-  }
-  return std::nullopt;
+  std::transform(normalized.begin(), normalized.end(), normalized.begin(),
+                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  return normalized;
 }
 
-std::vector<std::string> read_metadata_mesh_list(const fs::path& filepath) {
-  std::ifstream in(filepath);
-  if (!in) {
-    throw std::runtime_error("Failed to open metadata file: " + filepath.string());
-  }
+namespace {
 
-  std::vector<std::string> names;
-  std::string line;
-  bool first = true;
-  while (std::getline(in, line)) {
-    line = trim(line);
-    if (line.empty()) {
-      continue;
-    }
-    if (first) {
-      first = false;
-      if (line.find("mesh_name") != std::string::npos) {
-        continue;
-      }
-    }
-    std::istringstream iss(line);
-    std::string mesh_name;
-    if (!std::getline(iss, mesh_name, ',')) {
-      continue;
-    }
-    mesh_name = trim(mesh_name);
-    if (!mesh_name.empty()) {
-      names.push_back(mesh_name);
-    }
-  }
-  return names;
+bool path_has_extension(const fs::path& path, const std::string& extension) {
+  const std::string file_ext = to_lower(path.extension().string());
+  return file_ext == extension;
 }
 
-std::vector<fs::path> list_ply_files_in_directory(const fs::path& input_dir,
-                                                  ListPlyFilesOptions opts) {
-  std::vector<fs::path> ply_files;
-  const std::optional<fs::path> metadata_path = resolve_metadata_path(input_dir, opts);
+}  // namespace
 
-  if (metadata_path) {
-    const std::vector<std::string> metadata_order =
-        read_metadata_mesh_list(*metadata_path);
-    if (metadata_order.empty()) {
-      throw std::runtime_error("metadata file had no mesh entries: " +
-                               metadata_path->string());
+std::vector<fs::path> list_mesh_files_in_directory(const fs::path& input_dir,
+                                                   ListMeshFilesOptions opts) {
+  const std::string extension = normalize_mesh_extension(opts.extension);
+
+  std::vector<fs::path> mesh_files;
+  for (const auto& entry : fs::directory_iterator(input_dir)) {
+    if (!entry.is_regular_file()) {
+      continue;
     }
-    for (const auto& filename : metadata_order) {
-      const fs::path p = input_dir / filename;
-      if (fs::exists(p) && fs::is_regular_file(p) && p.extension() == ".ply") {
-        ply_files.push_back(p);
-      }
+    const fs::path p = entry.path();
+    if (path_has_extension(p, extension)) {
+      mesh_files.push_back(p);
     }
-  } else {
-    for (const auto& entry : fs::directory_iterator(input_dir)) {
-      if (!entry.is_regular_file()) {
-        continue;
-      }
-      const fs::path p = entry.path();
-      if (p.extension() == ".ply") {
-        ply_files.push_back(p);
-      }
-    }
-    sort_mesh_paths_by_filename(ply_files);
+  }
+  sort_mesh_paths_by_filename(mesh_files);
+
+  if (mesh_files.empty()) {
+    throw std::runtime_error("no " + extension + " files found in " + input_dir.string());
   }
 
-  if (ply_files.empty()) {
-    throw std::runtime_error("no .ply files found in " + input_dir.string());
+  if (opts.max_objects > 0 && mesh_files.size() > opts.max_objects) {
+    mesh_files.resize(opts.max_objects);
   }
 
-  if (opts.max_objects > 0 && ply_files.size() > opts.max_objects) {
-    ply_files.resize(opts.max_objects);
-  }
-
-  return ply_files;
+  return mesh_files;
 }
 
 namespace {
