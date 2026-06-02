@@ -53,6 +53,7 @@ add_library(tin_gen
   src/convex_hull_vertices.cpp
   src/config.cpp
   src/normalize_config.cpp
+  src/console.cpp
   src/cpu_timer.cpp
   src/mesh_helper.cpp
   src/tin_mesh.cpp

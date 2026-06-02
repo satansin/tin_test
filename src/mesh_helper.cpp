@@ -212,7 +212,7 @@ void report_folder_mesh_load_progress(const std::size_t loaded, const std::size_
     std::cout << std::setprecision(2) << "  memory " << (static_cast<double>(resident) / 1e6)
               << " MB";
   }
-  std::cout << '\n';
+  std::cout << '\n' << std::flush;
 }
 
 FolderMeshLoadProgress::FolderMeshLoadProgress(const std::size_t total,
