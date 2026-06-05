@@ -38,8 +38,10 @@ std::optional<PairwiseDistanceConfig> parse_pairwise_distance_config(const int a
       config.algorithm = parse_distance_algorithm(need_value("--algorithm"));
     } else if (arg == "--max-objects" || arg == "--limit") {
       config.max_objects = static_cast<std::size_t>(std::stoull(need_value(arg.c_str())));
-    } else if (arg == "--kd-dir" || arg == "--kdtree-dir" || arg == "--kdvertices-dir") {
-      config.kdtree_dir = need_value(arg.c_str());
+    } else if (arg == "--rs-dir" || arg == "-rs") {
+      config.rs_dir = need_value(arg.c_str());
+    } else if (arg == "--kd-dir" || arg == "-kd") {
+      config.kd_dir = need_value(arg.c_str());
     } else if (!arg.empty() && arg[0] != '-' && config.input_dir.empty()) {
       config.input_dir = arg;
     } else {

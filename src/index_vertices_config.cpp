@@ -5,8 +5,23 @@
 
 namespace tin_gen {
 
-std::optional<KdVerticesConfig> parse_kdvertices_config(const int argc, char* argv[]) {
-  KdVerticesConfig config;
+IndexVerticesConfig default_index_vertices_config(const VertexIndexKind kind) {
+  IndexVerticesConfig config;
+  config.kind = kind;
+  if (kind == VertexIndexKind::Kd) {
+    config.output_dir = "sample_kdvertices";
+    config.combined_file = "combined.kdtree";
+  } else {
+    config.output_dir = "sample_rs";
+    config.combined_file = "combined.rstree";
+  }
+  return config;
+}
+
+std::optional<IndexVerticesConfig> parse_index_vertices_config(const int argc, char* argv[],
+                                                               const VertexIndexKind kind) {
+  IndexVerticesConfig config = default_index_vertices_config(kind);
+  const char* command_name = kind == VertexIndexKind::Kd ? "kd" : "rs";
 
   for (int i = 0; i < argc; ++i) {
     const std::string arg = argv[i];
@@ -39,7 +54,8 @@ std::optional<KdVerticesConfig> parse_kdvertices_config(const int argc, char* ar
   }
 
   if (config.input_dir.empty()) {
-    throw std::runtime_error("kdvertices requires --input-dir DIR (or a positional DIR)");
+    throw std::runtime_error(std::string(command_name) +
+                             " requires --input-dir DIR (or a positional DIR)");
   }
 
   return config;

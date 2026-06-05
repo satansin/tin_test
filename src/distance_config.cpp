@@ -24,6 +24,8 @@ std::optional<DistanceConfig> parse_distance_config(const int argc, char* argv[]
     }
     if (arg == "--algorithm") {
       config.algorithm = parse_distance_algorithm(need_value("--algorithm"));
+    } else if (arg == "--compare-index" || arg == "--compare-spatial-index") {
+      config.compare_spatial_index = true;
     } else if (arg == "--a" || arg == "--mesh-a") {
       config.path_a = need_value(arg.c_str());
     } else if (arg == "--b" || arg == "--mesh-b") {

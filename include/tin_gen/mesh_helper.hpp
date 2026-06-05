@@ -18,7 +18,7 @@ enum class MeshFormat { Ply, Obj };
 [[nodiscard]] std::string_view mesh_format_extension(MeshFormat format);
 [[nodiscard]] std::string_view mesh_format_name(MeshFormat format);
 
-// --- Mesh folder listing and ordering (normalize / kdvertices / pairwise_distance) ---
+// --- Mesh folder listing and ordering (normalize / kd / rs / pairwise_distance) ---
 
 /// If @p filename matches `prefix_NUMBER.ext` (number is the stem suffix after the last `_`),
 /// returns NUMBER; otherwise nullopt.
@@ -46,7 +46,7 @@ struct ListMeshFilesOptions {
 [[nodiscard]] std::vector<std::filesystem::path> list_mesh_files_in_directory(
     const std::filesystem::path& input_dir, ListMeshFilesOptions opts = {});
 
-// --- Folder mesh load progress (normalize / kdvertices / pairwise_distance) ---
+// --- Folder mesh load progress (normalize / kd / rs / pairwise_distance) ---
 
 inline constexpr std::size_t kFolderMeshLoadProgressInterval = 2000;
 

@@ -122,32 +122,34 @@ Translates each mesh so the vertex mean is at the origin (subtracts the per-mesh
 | `-o, --output-dir DIR` | `sample_normalized` | Output folder for normalized `.ply` files |
 | `--max-objects N` | all | Normalize at most N meshes |
 
-Folder commands (`normalize`, `kdvertices`, `pairwise_distance`) list every matching mesh file in the input directory (`.ply` by default), sorted by numeric `name_NUMBER` suffix when present (`object_1`, `object_2`, …, `object_10`), otherwise lexicographic by filename. A `metadata.txt` file in the folder is ignored.
+Folder commands (`normalize`, `kd`, `rs`, `pairwise_distance`) list every matching mesh file in the input directory (`.ply` by default), sorted by numeric `name_NUMBER` suffix when present (`object_1`, `object_2`, …, `object_10`), otherwise lexicographic by filename. A `metadata.txt` file in the folder is ignored.
 
-### Kdvertices options
+### Index build options (`kd` / `rs`)
 
-Builds a **KD-tree index** over all mesh vertices.
+Both commands share the same flags; defaults depend on the command.
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `-i, --input-dir DIR` | (required) | Folder containing `.ply` files |
-| `-o, --output-dir DIR` | `sample_kdvertices` | Output directory |
-| `--max-objects N` | all | Process at most N meshes |
-| `--combined` | off | Write one `combined.kdtree` bundle (`TINKDB1`) instead of per-mesh files |
-| `--combined-file PATH` | `combined.kdtree` | Bundle filename with `--combined` |
+| Flag | `kd` default | `rs` default | Description |
+|------|--------------|--------------|-------------|
+| `-i, --input-dir DIR` | (required) | (required) | Folder containing `.ply` files |
+| `-o, --output-dir DIR` | `sample_kdvertices` | `sample_rs` | Output directory |
+| `--max-objects N` | all | all | Process at most N meshes |
+| `--combined` | off | off | Write one bundle instead of per-mesh files |
+| `--combined-file PATH` | `combined.kdtree` | `combined.rstree` | Bundle filename with `--combined` |
 
-Default: each `object_N.ply` → `object_N.kdtree` (`TINKDV1`). With `--combined`, all trees go into a single file with a table of contents (better for loading the last N objects in one read).
+**`rs`** builds an **R*-tree** index (default spatial index for `distance` / `pairwise_distance`). Each `object_N.ply` → `object_N.rstree` (`TINRSV1`), or one `combined.rstree` bundle (`TINRSB1`) with `--combined`.
+
+**`kd`** builds a **KD-tree** index. Each `object_N.ply` → `object_N.kdtree` (`TINKDV1`), or one `combined.kdtree` bundle (`TINKDB1`) with `--combined`.
 
 ```bash
-./build/release/tin_test kdvertices --input-dir sample_normalized
-./build/release/tin_test kdvertices --input-dir sample_normalized --combined
+./build/release/tin_test rs --input-dir sample_normalized --combined
+./build/release/tin_test kd --input-dir sample_normalized --combined
 ```
 
 ### Distance
 
 Dissimilarity between two PLY meshes. Select the algorithm with `--algorithm` (default: `vertex`).
 
-**`--algorithm vertex`** — symmetric mean RMS nearest-vertex distance (KD-tree):
+**`--algorithm vertex`** — symmetric mean RMS nearest-vertex distance (R*-tree by default):
 
 - \(d_A = \sqrt{\frac{1}{|A|}\sum_{u \in A} \|u - \mathrm{NN}_B(u)\|^2}\)
 - \(d_B = \sqrt{\frac{1}{|B|}\sum_{v \in B} \|v - \mathrm{NN}_A(v)\|^2}\)
@@ -162,20 +164,20 @@ Core API: `symmetric_vertex_distance()` in `include/tin_gen/vertex_distance.hpp`
 
 ### Pairwise_distance
 
-Compute all pairwise dissimilarities for `.ply` files in a folder (same `--algorithm` as `distance`, default `vertex`). Mesh order matches `normalize` / `kdvertices` (see above). Matrix entry `(i, j)` is the distance between object `i` and object `j` (0-based indices).
+Compute all pairwise dissimilarities for `.ply` files in a folder (same `--algorithm` as `distance`, default `vertex`). Mesh order matches `normalize` / `rs` (see above). Matrix entry `(i, j)` is the distance between object `i` and object `j` (0-based indices).
 
 Default output: `sample_pd/pairwise_distances_<algorithm>.txt` (e.g. `pairwise_distances_vertex.txt`) — comment header lists object order, then `n`, then `n` rows of `n` space-separated values.
 
 ```bash
 ./build/release/tin_test pairwise_distance --input-dir sample_normalized
 ./build/release/tin_test pairwise_distance -i sample_normalized -o sample_pd/pairwise_distances_vertex.txt
-./build/release/tin_test kdvertices --input-dir sample_normalized --output-dir sample_kdvertices
-./build/release/tin_test pd -i sample_normalized --kd-dir sample_kdvertices
+./build/release/tin_test rs --input-dir sample_normalized --output-dir sample_rs --combined
+./build/release/tin_test pd -i sample_normalized --rs-dir sample_rs
 ```
 
-With `--kd-dir`, KD-trees are loaded from that folder: if `combined.kdtree` exists (`kd --combined`), all trees are read from the bundle; otherwise each `object_N.kdtree` is loaded separately. Without `--kd-dir`, in-memory trees are built before the matrix; console output includes separate timing for **kd-tree build** / **kdtree load** and **matrix** computation.
+With `--rs-dir` (or `-rs`), R*-trees are loaded from that folder: if `combined.rstree` exists (`rs --combined`), all trees are read from the bundle; otherwise each `object_N.rstree` is loaded separately. Without `--rs-dir`, in-memory R*-trees are built before the matrix; console output includes separate timing for **rs build** / **rs load** and **matrix** computation. Use `--kd-dir` (or `-kd`) to load KD-trees instead (`--rs-dir` and `--kd-dir` are mutually exclusive).
 
-Command aliases: `gen` (generate), `norm` (normalize), `kd` (kdvertices), `dist` (distance), `pd` (pairwise_distance).
+Command aliases: `gen` (generate), `norm` (normalize), `kd` (kdvertices), `rs`, `dist` (distance), `pd` (pairwise_distance).
 
 ## Experiment dataset scripts (`../tin_exp/`)
 
@@ -184,16 +186,26 @@ Requires a sibling `tin_exp` directory. Uses `build/release/tin_test` when prese
 | Script | Input | Output |
 |--------|--------|--------|
 | `scripts/normalize_datasets.sh` | `output_synthetic/`, `../tin_exp/datasets_raw/` | `../tin_exp/datasets_normalized/<name>/` |
+| `scripts/build_rs_datasets.sh` | `../tin_exp/datasets_normalized/<name>/` | `../tin_exp/datasets_norm_rs/<name>/` |
 | `scripts/build_kd_datasets.sh` | `../tin_exp/datasets_normalized/<name>/` | `../tin_exp/datasets_norm_kd/<name>/` |
+| `scripts/compute_pd_datasets.sh` | `../tin_exp/datasets_normalized/<name>/`, `../tin_exp/datasets_norm_rs/<name>/` | `../tin_exp/datasets_norm_pd/<name>/pairwise_distances_vertex.txt` |
 
 ```bash
 ./scripts/normalize_datasets.sh          # small (default)
 ./scripts/normalize_datasets.sh full
-./scripts/build_kd_datasets.sh           # after normalize
+./scripts/build_rs_datasets.sh           # after normalize (default index)
+./scripts/build_rs_datasets.sh full
+./scripts/build_kd_datasets.sh           # optional KD-tree indexes
 ./scripts/build_kd_datasets.sh full
+./scripts/compute_pd_datasets.sh         # after build_rs_datasets
+./scripts/compute_pd_datasets.sh full
 ```
 
+`build_rs_datasets.sh` runs `tin_test rs --combined` on each normalized subfolder and writes one bundle per dataset (e.g. `datasets_norm_rs/modelnet40/combined.rstree`).
+
 `build_kd_datasets.sh` runs `tin_test kd --combined` on each normalized subfolder and writes one bundle per dataset (e.g. `datasets_norm_kd/modelnet40/combined.kdtree`).
+
+`compute_pd_datasets.sh` runs `tin_test pd --algorithm vertex --rs-dir …` on each dataset. **Small** mode: all synthetic presets plus at most 100 meshes per raw dataset; **full** mode: every subfolder under `datasets_normalized`, no mesh limit.
 
 ## Synthetic datasets script
 

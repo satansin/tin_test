@@ -4,9 +4,12 @@
 #include "tin_gen/distance_algorithm.hpp"
 #include "tin_gen/kd_tree.hpp"
 #include "tin_gen/mesh_helper.hpp"
+#include "tin_gen/rs_tree.hpp"
 #include "tin_gen/tin_mesh.hpp"
 #include "tin_gen/vertex_distance.hpp"
 
+#include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
@@ -23,18 +26,26 @@ namespace fs = std::filesystem;
 
 namespace {
 
+using Point = RsTree3d::Point;
+
+enum class SpatialIndexKind { Rs, Kd };
+
 struct MeshIndex {
   std::string name;
-  std::vector<KdTree3d::Point> vertices;
-  KdTree3d tree;
+  std::vector<Point> vertices;
+  RsTree3d rs_tree;
+  KdTree3d kd_tree;
+  SpatialIndexKind index_kind = SpatialIndexKind::Rs;
 };
 
 constexpr float kVertexMatchEpsilon = 1e-5f;
 
-void verify_vertices_match_kdtree(const std::vector<KdTree3d::Point>& vertices,
-                                  const KdTree3d& tree, const std::string& context) {
-  verify_kdtree_vertex_count(vertices.size(), tree, context);
-  const std::vector<KdTree3d::Point>& tree_points = tree.points();
+void verify_vertices_match_points(const std::vector<Point>& vertices,
+                                  const std::vector<Point>& tree_points,
+                                  const std::string& context) {
+  if (vertices.size() != tree_points.size()) {
+    throw std::runtime_error("pairwise_distance: vertex count mismatch for " + context);
+  }
   for (std::size_t i = 0; i < vertices.size(); ++i) {
     for (int axis = 0; axis < 3; ++axis) {
       const float ply_coord =
@@ -42,11 +53,23 @@ void verify_vertices_match_kdtree(const std::vector<KdTree3d::Point>& vertices,
       const float tree_coord =
           static_cast<float>(tree_points[i][static_cast<std::size_t>(axis)]);
       if (std::abs(ply_coord - tree_coord) > kVertexMatchEpsilon) {
-        throw std::runtime_error("pairwise_distance: ply vertices do not match kdtree points for " +
+        throw std::runtime_error("pairwise_distance: ply vertices do not match index points for " +
                                  context);
       }
     }
   }
+}
+
+void verify_vertices_match_rs_tree(const std::vector<Point>& vertices, const RsTree3d& tree,
+                                  const std::string& context) {
+  verify_rs_tree_vertex_count(vertices.size(), tree, context);
+  verify_vertices_match_points(vertices, tree.points(), context);
+}
+
+void verify_vertices_match_kdtree(const std::vector<Point>& vertices, const KdTree3d& tree,
+                                  const std::string& context) {
+  verify_kdtree_vertex_count(vertices.size(), tree, context);
+  verify_vertices_match_points(vertices, tree.points(), context);
 }
 
 MeshIndex load_mesh_vertices(const fs::path& ply_path) {
@@ -64,15 +87,16 @@ MeshIndex load_mesh_vertices(const fs::path& ply_path) {
   return entry;
 }
 
-void build_in_memory_kdtrees(std::vector<MeshIndex>& meshes) {
+void build_in_memory_rs_trees(std::vector<MeshIndex>& meshes) {
   for (auto& entry : meshes) {
-    entry.tree = KdTree3d(entry.vertices);
+    entry.rs_tree = RsTree3d(entry.vertices);
+    entry.index_kind = SpatialIndexKind::Rs;
   }
 }
 
-void assign_kdtrees_from_folder(std::vector<MeshIndex>& meshes,
+void assign_rs_trees_from_folder(std::vector<MeshIndex>& meshes,
                                 const std::vector<fs::path>& ply_files,
-                                const fs::path& kdtree_dir, LoadKdTreesFromFolderResult& loaded) {
+                                const fs::path& rs_dir, LoadRsTreesFromFolderResult& loaded) {
   if (meshes.size() != ply_files.size()) {
     throw std::logic_error("pairwise_distance: mesh/path count mismatch");
   }
@@ -83,7 +107,38 @@ void assign_kdtrees_from_folder(std::vector<MeshIndex>& meshes,
     expected_vertex_counts.push_back(mesh.vertices.size());
   }
 
-  loaded = load_kdtrees_from_folder(kdtree_dir, ply_files, expected_vertex_counts);
+  loaded = load_rs_trees_from_folder(rs_dir, ply_files, expected_vertex_counts);
+
+  for (std::size_t i = 0; i < meshes.size(); ++i) {
+    const std::string stem = ply_files[i].stem().string();
+    auto tree_it = loaded.trees_by_stem.find(stem);
+    if (tree_it == loaded.trees_by_stem.end()) {
+      throw std::runtime_error("pairwise_distance: rs missing entry for " + stem);
+    }
+    meshes[i].rs_tree = std::move(tree_it->second);
+    meshes[i].index_kind = SpatialIndexKind::Rs;
+    const std::string context =
+        loaded.source == RsTreeFolderLoadSource::Bundle
+            ? loaded.bundle_path->string() + " [" + stem + "]"
+            : (rs_dir / (stem + ".rstree")).string();
+    verify_vertices_match_rs_tree(meshes[i].vertices, meshes[i].rs_tree, context);
+  }
+}
+
+void assign_kdtrees_from_folder(std::vector<MeshIndex>& meshes,
+                                const std::vector<fs::path>& ply_files,
+                                const fs::path& kd_dir, LoadKdTreesFromFolderResult& loaded) {
+  if (meshes.size() != ply_files.size()) {
+    throw std::logic_error("pairwise_distance: mesh/path count mismatch");
+  }
+
+  std::vector<std::size_t> expected_vertex_counts;
+  expected_vertex_counts.reserve(meshes.size());
+  for (const auto& mesh : meshes) {
+    expected_vertex_counts.push_back(mesh.vertices.size());
+  }
+
+  loaded = load_kdtrees_from_folder(kd_dir, ply_files, expected_vertex_counts);
 
   for (std::size_t i = 0; i < meshes.size(); ++i) {
     const std::string stem = ply_files[i].stem().string();
@@ -91,35 +146,91 @@ void assign_kdtrees_from_folder(std::vector<MeshIndex>& meshes,
     if (tree_it == loaded.trees_by_stem.end()) {
       throw std::runtime_error("pairwise_distance: kdtree missing entry for " + stem);
     }
-    meshes[i].tree = std::move(tree_it->second);
+    meshes[i].kd_tree = std::move(tree_it->second);
+    meshes[i].index_kind = SpatialIndexKind::Kd;
     const std::string context =
         loaded.source == KdTreeFolderLoadSource::Bundle
             ? loaded.bundle_path->string() + " [" + stem + "]"
-            : (kdtree_dir / (stem + ".kdtree")).string();
-    verify_vertices_match_kdtree(meshes[i].vertices, meshes[i].tree, context);
+            : (kd_dir / (stem + ".kdtree")).string();
+    verify_vertices_match_kdtree(meshes[i].vertices, meshes[i].kd_tree, context);
   }
 }
 
 double vertex_pair_distance(const MeshIndex& a, const MeshIndex& b) {
+  if (a.index_kind == SpatialIndexKind::Kd || b.index_kind == SpatialIndexKind::Kd) {
+    const VertexDistanceResult result =
+        symmetric_vertex_distance(a.vertices, b.kd_tree, b.vertices, a.kd_tree);
+    return result.distance;
+  }
   const VertexDistanceResult result =
-      symmetric_vertex_distance(a.vertices, b.tree, b.vertices, a.tree);
+      symmetric_vertex_distance_index(a.vertices, b.rs_tree, b.vertices, a.rs_tree);
   return result.distance;
 }
 
+class PairwiseMatrixProgress {
+ public:
+  explicit PairwiseMatrixProgress(std::size_t num_meshes,
+                                  std::string_view label = "pairwise_distance matrix")
+      : total_pairs_(total_pair_computations(num_meshes)),
+        label_(label),
+        start_(std::chrono::steady_clock::now()) {
+    interval_ = compute_interval(total_pairs_);
+  }
+
+  void mark_pair_completed(std::size_t completed_pairs) {
+    if (total_pairs_ == 0 || completed_pairs == 0 || completed_pairs > total_pairs_) {
+      return;
+    }
+    const bool at_interval = completed_pairs % interval_ == 0;
+    const bool at_end = completed_pairs == total_pairs_;
+    if (!at_interval && !at_end) {
+      return;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    const double elapsed =
+        std::chrono::duration<double>(now - start_).count();
+    report_folder_mesh_load_progress(completed_pairs, total_pairs_, elapsed, label_);
+  }
+
+ private:
+  static std::size_t total_pair_computations(const std::size_t num_meshes) {
+    if (num_meshes <= 1) {
+      return 0;
+    }
+    return num_meshes * (num_meshes - 1) / 2;
+  }
+
+  static std::size_t compute_interval(const std::size_t total_pairs) {
+    if (total_pairs <= 1) {
+      return 1;
+    }
+    const std::size_t tenth = (total_pairs + 9) / 10;
+    return std::min(kFolderMeshLoadProgressInterval, std::max<std::size_t>(1, tenth));
+  }
+
+  std::size_t total_pairs_ = 0;
+  std::size_t interval_ = 1;
+  std::string label_;
+  std::chrono::steady_clock::time_point start_;
+};
+
 void write_pairwise_matrix_vertex(const std::vector<MeshIndex>& meshes,
                                   const DistanceAlgorithm algorithm,
-                                  const fs::path& output_path,
-                                  const std::optional<fs::path>& kdtree_dir,
-                                  const std::optional<fs::path>& kdtree_bundle) {
+                                  const fs::path& output_path, SpatialIndexKind index_kind,
+                                  const std::optional<fs::path>& index_dir,
+                                  const std::optional<fs::path>& index_bundle) {
   const std::size_t n = meshes.size();
   std::vector<std::vector<double>> matrix(n, std::vector<double>(n, 0.0));
 
+  PairwiseMatrixProgress matrix_progress(n);
+  std::size_t pairs_done = 0;
   for (std::size_t i = 0; i < n; ++i) {
     matrix[i][i] = 0.0;
     for (std::size_t j = i + 1; j < n; ++j) {
       const double distance = vertex_pair_distance(meshes[i], meshes[j]);
       matrix[i][j] = distance;
       matrix[j][i] = distance;
+      matrix_progress.mark_pair_completed(++pairs_done);
     }
   }
 
@@ -133,13 +244,22 @@ void write_pairwise_matrix_vertex(const std::vector<MeshIndex>& meshes,
   out << std::setprecision(17);
   out << "# tin_test pairwise_distance\n";
   out << "# algorithm: " << distance_algorithm_name(algorithm) << '\n';
-  if (kdtree_dir) {
-    out << "# kd_dir: " << kdtree_dir->string() << '\n';
-    if (kdtree_bundle) {
-      out << "# kdtree_bundle: " << kdtree_bundle->string() << '\n';
+  if (index_kind == SpatialIndexKind::Kd) {
+    if (index_dir) {
+      out << "# kd_dir: " << index_dir->string() << '\n';
+      if (index_bundle) {
+        out << "# kdtree_bundle: " << index_bundle->string() << '\n';
+      }
+    } else {
+      out << "# kdtree: in-memory (built from ply vertices)\n";
+    }
+  } else if (index_dir) {
+    out << "# rs_dir: " << index_dir->string() << '\n';
+    if (index_bundle) {
+      out << "# rs_bundle: " << index_bundle->string() << '\n';
     }
   } else {
-    out << "# kdtree: in-memory (built from ply vertices)\n";
+    out << "# rs: in-memory (built from ply vertices)\n";
   }
   out << "# n=" << n << "  matrix[i][j] = distance between object i and object j (0-based)\n";
   for (std::size_t i = 0; i < n; ++i) {
@@ -162,12 +282,26 @@ void write_pairwise_matrix_vertex(const std::vector<MeshIndex>& meshes,
 int run_pairwise_distance(const PairwiseDistanceConfig& config) {
   const fs::path input_dir(config.input_dir);
   const fs::path output_path(config.output_path);
-  std::optional<fs::path> kdtree_dir;
-  if (config.kdtree_dir) {
-    kdtree_dir = fs::path(*config.kdtree_dir);
-    if (!fs::exists(*kdtree_dir) || !fs::is_directory(*kdtree_dir)) {
-      throw std::runtime_error("pairwise_distance: kdtree_dir is not a directory: " +
-                               kdtree_dir->string());
+
+  if (config.kd_dir && config.rs_dir) {
+    throw std::runtime_error("pairwise_distance: --kd-dir and --rs-dir are mutually exclusive");
+  }
+
+  std::optional<fs::path> rs_dir;
+  if (config.rs_dir) {
+    rs_dir = fs::path(*config.rs_dir);
+    if (!fs::exists(*rs_dir) || !fs::is_directory(*rs_dir)) {
+      throw std::runtime_error("pairwise_distance: rs_dir is not a directory: " +
+                               rs_dir->string());
+    }
+  }
+
+  std::optional<fs::path> kd_dir;
+  if (config.kd_dir) {
+    kd_dir = fs::path(*config.kd_dir);
+    if (!fs::exists(*kd_dir) || !fs::is_directory(*kd_dir)) {
+      throw std::runtime_error("pairwise_distance: kd_dir is not a directory: " +
+                               kd_dir->string());
     }
   }
 
@@ -196,25 +330,46 @@ int run_pairwise_distance(const PairwiseDistanceConfig& config) {
     load_progress.mark_loaded(i + 1);
   }
 
+  SpatialIndexKind index_kind = SpatialIndexKind::Rs;
+  std::optional<fs::path> index_dir;
+  std::optional<fs::path> index_bundle;
+
+  LoadRsTreesFromFolderResult loaded_rs;
   LoadKdTreesFromFolderResult loaded_kdtrees;
-  if (kdtree_dir) {
+
+  if (kd_dir) {
+    index_kind = SpatialIndexKind::Kd;
+    index_dir = kd_dir;
     CpuTimer cpu_load;
     WallTimer wall_load;
     cpu_load.start();
     wall_load.start();
-    assign_kdtrees_from_folder(meshes, ply_files, *kdtree_dir, loaded_kdtrees);
+    assign_kdtrees_from_folder(meshes, ply_files, *kd_dir, loaded_kdtrees);
     cpu_load.stop();
     wall_load.stop();
+    index_bundle = loaded_kdtrees.bundle_path;
     print_cpu_wall_timing("pairwise_distance kdtree load", cpu_load, wall_load);
+  } else if (rs_dir) {
+    index_kind = SpatialIndexKind::Rs;
+    index_dir = rs_dir;
+    CpuTimer cpu_load;
+    WallTimer wall_load;
+    cpu_load.start();
+    wall_load.start();
+    assign_rs_trees_from_folder(meshes, ply_files, *rs_dir, loaded_rs);
+    cpu_load.stop();
+    wall_load.stop();
+    index_bundle = loaded_rs.bundle_path;
+    print_cpu_wall_timing("pairwise_distance rs load", cpu_load, wall_load);
   } else {
     CpuTimer cpu_build;
     WallTimer wall_build;
     cpu_build.start();
     wall_build.start();
-    build_in_memory_kdtrees(meshes);
+    build_in_memory_rs_trees(meshes);
     cpu_build.stop();
     wall_build.stop();
-    print_cpu_wall_timing("pairwise_distance kd-tree build", cpu_build, wall_build);
+    print_cpu_wall_timing("pairwise_distance r*-tree build", cpu_build, wall_build);
   }
 
   CpuTimer cpu_matrix;
@@ -224,8 +379,8 @@ int run_pairwise_distance(const PairwiseDistanceConfig& config) {
 
   switch (config.algorithm) {
     case DistanceAlgorithm::Vertex:
-      write_pairwise_matrix_vertex(meshes, config.algorithm, output_path, kdtree_dir,
-                                   loaded_kdtrees.bundle_path);
+      write_pairwise_matrix_vertex(meshes, config.algorithm, output_path, index_kind, index_dir,
+                                   index_bundle);
       break;
     default:
       throw std::logic_error("Unhandled distance algorithm.");
@@ -237,16 +392,24 @@ int run_pairwise_distance(const PairwiseDistanceConfig& config) {
   std::cout << "pairwise_distance\n"
             << "  input: " << input_dir.string() << " (" << meshes.size() << " meshes)\n"
             << "  algorithm: " << distance_algorithm_name(config.algorithm) << '\n';
-  if (kdtree_dir) {
-    std::cout << "  kd_dir: " << kdtree_dir->string() << '\n';
+  if (kd_dir) {
+    std::cout << "  kd_dir: " << kd_dir->string() << '\n';
     if (loaded_kdtrees.source == KdTreeFolderLoadSource::Bundle &&
         loaded_kdtrees.bundle_path) {
       std::cout << "  kdtree_source: bundle\n";
     } else {
       std::cout << "  kdtree_source: per-file\n";
     }
+  } else if (rs_dir) {
+    std::cout << "  rs_dir: " << rs_dir->string() << '\n';
+    if (loaded_rs.source == RsTreeFolderLoadSource::Bundle &&
+        loaded_rs.bundle_path) {
+      std::cout << "  rs_source: bundle\n";
+    } else {
+      std::cout << "  rs_source: per-file\n";
+    }
   } else {
-    std::cout << "  kdtree: in-memory (built before distance matrix)\n";
+    std::cout << "  rs: in-memory (built before distance matrix)\n";
   }
   std::cout << "  output: " << output_path.string() << '\n';
   print_cpu_wall_timing("pairwise_distance matrix", cpu_matrix, wall_matrix);

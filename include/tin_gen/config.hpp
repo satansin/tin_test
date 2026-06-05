@@ -25,14 +25,24 @@ struct NormalizeConfig {
   std::size_t max_objects = 0;  // 0 = all
 };
 
-struct KdVerticesConfig {
+/// KD-tree or R*-tree vertex index build (`kd` / `rs` commands).
+enum class VertexIndexKind { Kd, Rs };
+
+struct IndexVerticesConfig {
+  VertexIndexKind kind = VertexIndexKind::Rs;
   std::string input_dir;
-  std::string output_dir = "sample_kdvertices";
+  std::string output_dir;
   std::size_t max_objects = 0;  // 0 = all
-  /// Write one combined bundle file instead of per-mesh .kdtree files.
   bool combined_output = false;
-  std::string combined_file = "combined.kdtree";
+  std::string combined_file;
 };
+
+[[nodiscard]] IndexVerticesConfig default_index_vertices_config(VertexIndexKind kind);
+
+/// Parse options for the kd / rs index commands. Returns nullopt on -h/--help.
+[[nodiscard]] std::optional<IndexVerticesConfig> parse_index_vertices_config(int argc,
+                                                                               char* argv[],
+                                                                               VertexIndexKind kind);
 
 /// Parse options for the generate command. Returns nullopt on -h/--help.
 [[nodiscard]] std::optional<GenerationConfig> parse_generate_config(int argc, char* argv[]);
@@ -40,13 +50,12 @@ struct KdVerticesConfig {
 /// Parse options for the normalize command. Returns nullopt on -h/--help.
 [[nodiscard]] std::optional<NormalizeConfig> parse_normalize_config(int argc, char* argv[]);
 
-/// Parse options for the kdvertices command. Returns nullopt on -h/--help.
-[[nodiscard]] std::optional<KdVerticesConfig> parse_kdvertices_config(int argc, char* argv[]);
-
 struct DistanceConfig {
   std::string path_a;
   std::string path_b;
   DistanceAlgorithm algorithm = DistanceAlgorithm::Vertex;
+  /// When true, build KD-tree and R*-tree and print a side-by-side timing comparison.
+  bool compare_spatial_index = false;
 };
 
 /// Parse options for the distance command. Returns nullopt on -h/--help.
@@ -57,8 +66,10 @@ struct PairwiseDistanceConfig {
   std::string output_path;  // default: sample_pd/pairwise_distances_<algorithm>.txt
   DistanceAlgorithm algorithm = DistanceAlgorithm::Vertex;
   std::size_t max_objects = 0;  // 0 = all
-  /// When set (`--kd-dir`), load per-mesh `<stem>.kdtree` files from this folder for NN search.
-  std::optional<std::string> kdtree_dir;
+  /// When set (`--rs-dir`), load per-mesh `<stem>.rstree` files from this folder for NN search.
+  std::optional<std::string> rs_dir;
+  /// When set (`--kd-dir`), load per-mesh `<stem>.kdtree` files instead of R*-trees.
+  std::optional<std::string> kd_dir;
 };
 
 [[nodiscard]] std::string default_pairwise_distance_output_path(DistanceAlgorithm algorithm);

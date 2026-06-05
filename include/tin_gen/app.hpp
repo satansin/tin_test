@@ -6,13 +6,13 @@
 
 namespace tin_gen {
 
-enum class AppCommand { Generate, Normalize, KdVertices, Distance, PairwiseDistance };
+enum class AppCommand { Generate, Normalize, Kd, Rs, Distance, PairwiseDistance };
 
 struct AppRequest {
   AppCommand command = AppCommand::Generate;
   GenerationConfig generate_config;
   NormalizeConfig normalize_config;
-  KdVerticesConfig kdvertices_config;
+  IndexVerticesConfig index_vertices_config;
   DistanceConfig distance_config;
   PairwiseDistanceConfig pairwise_distance_config;
 };

@@ -2,7 +2,7 @@
 
 #include "tin_gen/commands/generate.hpp"
 #include "tin_gen/commands/distance.hpp"
-#include "tin_gen/commands/kdvertices.hpp"
+#include "tin_gen/commands/index_vertices.hpp"
 #include "tin_gen/commands/pairwise_distance.hpp"
 #include "tin_gen/commands/normalize.hpp"
 
@@ -36,7 +36,10 @@ AppCommand parse_app_command(const std::string_view name) {
     return AppCommand::Normalize;
   }
   if (normalized == "kdvertices" || normalized == "kd") {
-    return AppCommand::KdVertices;
+    return AppCommand::Kd;
+  }
+  if (normalized == "rsvertices" || normalized == "rs") {
+    return AppCommand::Rs;
   }
   if (normalized == "distance" || normalized == "dist") {
     return AppCommand::Distance;
@@ -54,8 +57,10 @@ std::string_view app_command_name(const AppCommand command) {
       return "generate";
     case AppCommand::Normalize:
       return "normalize";
-    case AppCommand::KdVertices:
-      return "kdvertices";
+    case AppCommand::Kd:
+      return "kd";
+    case AppCommand::Rs:
+      return "rs";
     case AppCommand::Distance:
       return "distance";
     case AppCommand::PairwiseDistance:
@@ -69,11 +74,12 @@ void print_usage(const char* program) {
             << "Commands:\n"
             << "  generate (gen)   Build random TIN meshes and write files\n"
             << "  normalize (norm) Translate PLY meshes to zero mean (no scaling)\n"
-            << "  kdvertices (kd)  Build KD-tree vertex indexes for meshes in a folder\n"
+            << "  kd (kdvertices)  Build KD-tree vertex indexes for meshes in a folder\n"
+            << "  rs               Build R*-tree vertex indexes for meshes in a folder\n"
             << "  distance (dist)    Dissimilarity between two PLY meshes\n"
             << "  pairwise_distance (pd)  All pairwise dissimilarities in a folder\n"
             << "  help                    Show this help\n\n"
-            << "Command aliases: gen, norm, kd, dist, pd\n\n"
+            << "Command aliases: gen, norm, kd, rs, dist, pd\n\n"
             << "Generate options:\n"
             << "  --format FORMAT     Output mesh format: ply | obj (default: ply)\n"
             << "  -o, --output-dir DIR   Output directory (default: sample_gen)\n"
@@ -86,26 +92,29 @@ void print_usage(const char* program) {
             << "  -i, --input-dir DIR    Folder containing .ply files\n"
             << "  -o, --output-dir DIR   Output directory (default: sample_normalized)\n"
             << "  --max-objects N        Normalize at most N meshes (default: all)\n\n"
-            << "Kdvertices options:\n"
+            << "Index build options (kd / rs):\n"
             << "  -i, --input-dir DIR    Folder containing .ply files\n"
-            << "  -o, --output-dir DIR   Output directory (default: sample_kdvertices)\n"
+            << "  -o, --output-dir DIR   Output directory (kd: sample_kdvertices, rs: sample_rs)\n"
             << "  --max-objects N        Process at most N meshes (default: all)\n"
-            << "  --combined             Write one bundle file (default: combined.kdtree)\n"
+            << "  --combined             Write one bundle (kd: combined.kdtree, rs: combined.rstree)\n"
             << "  --combined-file PATH   Bundle filename with --combined\n\n"
             << "Distance options:\n"
             << "  A.ply B.ply            Two mesh paths (or --a / --b)\n"
-            << "  --algorithm NAME       vertex (default)\n\n"
+            << "  --algorithm NAME       vertex (default)\n"
+            << "  --compare-index        Build KD-tree and R*-tree; print side-by-side timings\n\n"
             << "Pairwise_distance options:\n"
             << "  -i, --input-dir DIR    Folder containing .ply files\n"
             << "  -o, --output PATH      Matrix file (default: sample_pd/pairwise_distances_<algorithm>.txt)\n"
             << "  --algorithm NAME       vertex (default)\n"
             << "  --max-objects N        Use at most N meshes (default: all)\n"
-            << "  --kd-dir DIR           Use prebuilt <stem>.kdtree files for NN search\n\n"
+            << "  --rs-dir DIR, -rs DIR  Use prebuilt <stem>.rstree files for NN search (default index)\n"
+            << "  --kd-dir DIR, -kd DIR  Use prebuilt <stem>.kdtree files for NN search\n\n"
             << "Examples:\n"
             << "  " << program << " gen --format obj\n"
             << "  " << program << " gen --seed 42 --num-objects 5\n"
             << "  " << program << " norm --input-dir sample_gen\n"
             << "  " << program << " kd --input-dir sample_normalized\n"
+            << "  " << program << " rs --input-dir sample_normalized\n"
             << "  " << program << " dist sample_normalized/object_1.ply "
             << "sample_normalized/object_2.ply\n"
             << "  " << program << " pd --input-dir sample_normalized\n";
@@ -147,13 +156,22 @@ std::optional<AppRequest> parse_app_request(const int argc, char* argv[]) {
       return std::nullopt;
     }
     request.normalize_config = *config;
-  } else if (request.command == AppCommand::KdVertices) {
-    const auto config = parse_kdvertices_config(argc - option_start, argv + option_start);
+  } else if (request.command == AppCommand::Kd) {
+    const auto config =
+        parse_index_vertices_config(argc - option_start, argv + option_start, VertexIndexKind::Kd);
     if (!config) {
       print_usage(argv[0]);
       return std::nullopt;
     }
-    request.kdvertices_config = *config;
+    request.index_vertices_config = *config;
+  } else if (request.command == AppCommand::Rs) {
+    const auto config =
+        parse_index_vertices_config(argc - option_start, argv + option_start, VertexIndexKind::Rs);
+    if (!config) {
+      print_usage(argv[0]);
+      return std::nullopt;
+    }
+    request.index_vertices_config = *config;
   } else if (request.command == AppCommand::Distance) {
     const auto config = parse_distance_config(argc - option_start, argv + option_start);
     if (!config) {
@@ -179,8 +197,9 @@ int run_app(const AppRequest& request) {
       return run_generate(request.generate_config);
     case AppCommand::Normalize:
       return run_normalize(request.normalize_config);
-    case AppCommand::KdVertices:
-      return run_kdvertices(request.kdvertices_config);
+    case AppCommand::Kd:
+    case AppCommand::Rs:
+      return run_index_vertices(request.index_vertices_config);
     case AppCommand::Distance:
       return run_distance(request.distance_config);
     case AppCommand::PairwiseDistance:
