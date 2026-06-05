@@ -1,82 +1,80 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build R*-tree indexes for every dataset under ../tin_exp/datasets_normalized/.
+# Build R*-tree indexes for datasets under ../tin_exp/datasets_normalized/.
 #
 # Usage:
 #   ./scripts/build_rs_datasets.sh [small|full]
 #
-# Assumptions:
-#   - ../tin_exp/datasets_normalized/<name>/ contains normalized .ply files
-#
-# Output (per dataset <name>):
-#   - ../tin_exp/datasets_norm_rs/<name>/combined.rstree
+# Output (per dataset):
+#   ../tin_exp/datasets_norm_rs/<name>/combined.rstree
 
 MODE="${1:-small}"
-shopt -s nullglob
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TIN_TEST="${TIN_TEST_BIN:-}"
-if [[ -z "${TIN_TEST}" ]]; then
-  if [[ -x "${ROOT}/build/release/tin_test" ]]; then
-    TIN_TEST="${ROOT}/build/release/tin_test"
-  else
-    TIN_TEST="${ROOT}/build/debug/tin_test"
-  fi
-fi
-
+BIN="${TIN_TEST_BIN:-${ROOT}/build/release/tin_test}"
 NORM_ROOT="${ROOT}/../tin_exp/datasets_normalized"
 RS_ROOT="${ROOT}/../tin_exp/datasets_norm_rs"
 
-if [[ ! -d "${NORM_ROOT}" ]]; then
-  echo "error: normalized datasets not found: ${NORM_ROOT}" >&2
-  echo "Run ./scripts/normalize_datasets.sh first." >&2
-  exit 1
-fi
-
 mkdir -p "${RS_ROOT}"
 
-build_rs_dir() {
-  local in_dir="$1"
-  local out_dir="$2"
-  local max_objects="$3"
-  mkdir -p "${out_dir}"
-  if [[ "${max_objects}" -gt 0 ]]; then
-    "${TIN_TEST}" rs --input-dir "${in_dir}" --output-dir "${out_dir}" --combined \
-      --max-objects "${max_objects}"
-  else
-    "${TIN_TEST}" rs --input-dir "${in_dir}" --output-dir "${out_dir}" --combined
-  fi
-}
+echo ">>> build_rs_datasets.sh"
+echo "    mode:   ${MODE}"
+echo "    bin:    ${BIN}"
+echo "    input:  ${NORM_ROOT}"
+echo "    output: ${RS_ROOT}"
+echo ""
 
-process_dataset() {
-  local name="$1"
-  local in_dir="${NORM_ROOT}/${name}"
-  local out_dir="${RS_ROOT}/${name}"
-  if [[ ! -d "${in_dir}" ]]; then
-    return 0
-  fi
-  echo "--- ${name} ---"
-  build_rs_dir "${in_dir}" "${out_dir}" "${2}"
-}
-
-echo "=== R*-tree indexes from datasets_normalized ==="
 if [[ "${MODE}" == "full" ]]; then
-  for d in "${NORM_ROOT}"/*; do
-    [[ -d "${d}" ]] || continue
-    process_dataset "$(basename "${d}")" 0
-  done
+  echo "--- synthetic_objects100_vertices200 ---"
+  "${BIN}" rs -i "${NORM_ROOT}/synthetic_objects100_vertices200" \
+    -o "${RS_ROOT}/synthetic_objects100_vertices200" --combined
+  echo "--- synthetic_objects100_vertices500 ---"
+  "${BIN}" rs -i "${NORM_ROOT}/synthetic_objects100_vertices500" \
+    -o "${RS_ROOT}/synthetic_objects100_vertices500" --combined
+  echo "--- synthetic_objects1000_vertices200 ---"
+  "${BIN}" rs -i "${NORM_ROOT}/synthetic_objects1000_vertices200" \
+    -o "${RS_ROOT}/synthetic_objects1000_vertices200" --combined
+  echo "--- synthetic_objects1000_vertices500 ---"
+  "${BIN}" rs -i "${NORM_ROOT}/synthetic_objects1000_vertices500" \
+    -o "${RS_ROOT}/synthetic_objects1000_vertices500" --combined
+  echo "--- synthetic_objects10000_vertices200 ---"
+  "${BIN}" rs -i "${NORM_ROOT}/synthetic_objects10000_vertices200" \
+    -o "${RS_ROOT}/synthetic_objects10000_vertices200" --combined
+  echo "--- synthetic_objects10000_vertices500 ---"
+  "${BIN}" rs -i "${NORM_ROOT}/synthetic_objects10000_vertices500" \
+    -o "${RS_ROOT}/synthetic_objects10000_vertices500" --combined
+  echo "--- ModelNet40 ---"
+  "${BIN}" rs -i "${NORM_ROOT}/ModelNet40" -o "${RS_ROOT}/ModelNet40" --combined
+  echo "--- ModelNet40_auto_aligned ---"
+  "${BIN}" rs -i "${NORM_ROOT}/ModelNet40_auto_aligned" \
+    -o "${RS_ROOT}/ModelNet40_auto_aligned" --combined
+  echo "--- ModelNet40_manually_aligned ---"
+  "${BIN}" rs -i "${NORM_ROOT}/ModelNet40_manually_aligned" \
+    -o "${RS_ROOT}/ModelNet40_manually_aligned" --combined
+  echo "--- ShapeNetCore ---"
+  "${BIN}" rs -i "${NORM_ROOT}/ShapeNetCore" -o "${RS_ROOT}/ShapeNetCore" --combined
 else
-  for name in synthetic_objects100_vertices200 synthetic_objects100_vertices500 \
-    synthetic_objects1000_vertices200; do
-    process_dataset "${name}" 0
-  done
-  for d in "${NORM_ROOT}"/*; do
-    [[ -d "${d}" ]] || continue
-    name="$(basename "${d}")"
-    [[ "${name}" == synthetic_* ]] && continue
-    process_dataset "${name}" 100
-  done
+  echo "--- synthetic_objects100_vertices200 ---"
+  "${BIN}" rs -i "${NORM_ROOT}/synthetic_objects100_vertices200" \
+    -o "${RS_ROOT}/synthetic_objects100_vertices200" --combined
+  echo "--- synthetic_objects100_vertices500 ---"
+  "${BIN}" rs -i "${NORM_ROOT}/synthetic_objects100_vertices500" \
+    -o "${RS_ROOT}/synthetic_objects100_vertices500" --combined
+  echo "--- synthetic_objects1000_vertices200 ---"
+  "${BIN}" rs -i "${NORM_ROOT}/synthetic_objects1000_vertices200" \
+    -o "${RS_ROOT}/synthetic_objects1000_vertices200" --combined
+  echo "--- ModelNet40 ---"
+  "${BIN}" rs -i "${NORM_ROOT}/ModelNet40" -o "${RS_ROOT}/ModelNet40" --combined --max-objects 100
+  echo "--- ModelNet40_auto_aligned ---"
+  "${BIN}" rs -i "${NORM_ROOT}/ModelNet40_auto_aligned" \
+    -o "${RS_ROOT}/ModelNet40_auto_aligned" --combined --max-objects 100
+  echo "--- ModelNet40_manually_aligned ---"
+  "${BIN}" rs -i "${NORM_ROOT}/ModelNet40_manually_aligned" \
+    -o "${RS_ROOT}/ModelNet40_manually_aligned" --combined --max-objects 100
+  echo "--- ShapeNetCore ---"
+  "${BIN}" rs -i "${NORM_ROOT}/ShapeNetCore" -o "${RS_ROOT}/ShapeNetCore" --combined --max-objects 100
 fi
 
+echo ""
 echo "Done: ${RS_ROOT}"

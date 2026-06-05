@@ -5,72 +5,88 @@ set -euo pipefail
 #   ./scripts/normalize_datasets.sh [small|full]
 #
 # Assumptions:
-#   - ../tin_exp/ exists
-#   - synthetic datasets are under output_synthetic/<dataset>/
-#   - raw datasets are under ../tin_exp/datasets_raw/<dataset>/
+#   - synthetic datasets under output_synthetic/<dataset>/
+#   - raw datasets under ../tin_exp/datasets_raw/<dataset>/
 #
 # Output:
 #   - ../tin_exp/datasets_normalized/synthetic_<dataset>/
 #   - ../tin_exp/datasets_normalized/<dataset>/
 
 MODE="${1:-small}"
-shopt -s nullglob
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TIN_TEST="${TIN_TEST_BIN:-}"
-if [[ -z "${TIN_TEST}" ]]; then
-  if [[ -x "${ROOT}/build/release/tin_test" ]]; then
-    TIN_TEST="${ROOT}/build/release/tin_test"
-  else
-    TIN_TEST="${ROOT}/build/debug/tin_test"
-  fi
-fi
-
+BIN="${TIN_TEST_BIN:-${ROOT}/build/release/tin_test}"
 SYNTH_ROOT="${ROOT}/output_synthetic"
 RAW_ROOT="${ROOT}/../tin_exp/datasets_raw"
 NORM_ROOT="${ROOT}/../tin_exp/datasets_normalized"
 
 mkdir -p "${NORM_ROOT}"
 
-normalize_dir() {
-  local in_dir="$1"
-  local out_dir="$2"
-  local max_objects="$3"
-  mkdir -p "${out_dir}"
-  if [[ "${max_objects}" -gt 0 ]]; then
-    "${TIN_TEST}" normalize --input-dir "${in_dir}" --output-dir "${out_dir}" --max-objects "${max_objects}"
-  else
-    "${TIN_TEST}" normalize --input-dir "${in_dir}" --output-dir "${out_dir}"
-  fi
-}
+echo ">>> normalize_datasets.sh"
+echo "    mode:        ${MODE}"
+echo "    bin:         ${BIN}"
+echo "    synthetic:   ${SYNTH_ROOT}"
+echo "    raw:         ${RAW_ROOT}"
+echo "    output:      ${NORM_ROOT}"
+echo ""
 
 echo "=== Synthetic datasets ==="
 if [[ "${MODE}" == "full" ]]; then
-  for d in "${SYNTH_ROOT}"/*; do
-    [[ -d "${d}" ]] || continue
-    name="$(basename "${d}")"
-    normalize_dir "${d}" "${NORM_ROOT}/synthetic_${name}" 0
-  done
+  echo "--- objects100_vertices200 ---"
+  "${BIN}" norm -i "${SYNTH_ROOT}/objects100_vertices200" \
+    -o "${NORM_ROOT}/synthetic_objects100_vertices200"
+  echo "--- objects100_vertices500 ---"
+  "${BIN}" norm -i "${SYNTH_ROOT}/objects100_vertices500" \
+    -o "${NORM_ROOT}/synthetic_objects100_vertices500"
+  echo "--- objects1000_vertices200 ---"
+  "${BIN}" norm -i "${SYNTH_ROOT}/objects1000_vertices200" \
+    -o "${NORM_ROOT}/synthetic_objects1000_vertices200"
+  echo "--- objects10000_vertices200 ---"
+  "${BIN}" norm -i "${SYNTH_ROOT}/objects10000_vertices200" \
+    -o "${NORM_ROOT}/synthetic_objects10000_vertices200"
+  echo "--- objects10000_vertices500 ---"
+  "${BIN}" norm -i "${SYNTH_ROOT}/objects10000_vertices500" \
+    -o "${NORM_ROOT}/synthetic_objects10000_vertices500"
+  echo "--- objects1000_vertices500 ---"
+  "${BIN}" norm -i "${SYNTH_ROOT}/objects1000_vertices500" \
+    -o "${NORM_ROOT}/synthetic_objects1000_vertices500"
 else
-  for name in objects100_vertices200 objects100_vertices500 objects1000_vertices200; do
-    if [[ -d "${SYNTH_ROOT}/${name}" ]]; then
-      normalize_dir "${SYNTH_ROOT}/${name}" "${NORM_ROOT}/synthetic_${name}" 0
-    fi
-  done
+  echo "--- objects100_vertices200 ---"
+  "${BIN}" norm -i "${SYNTH_ROOT}/objects100_vertices200" \
+    -o "${NORM_ROOT}/synthetic_objects100_vertices200"
+  echo "--- objects100_vertices500 ---"
+  "${BIN}" norm -i "${SYNTH_ROOT}/objects100_vertices500" \
+    -o "${NORM_ROOT}/synthetic_objects100_vertices500"
+  echo "--- objects1000_vertices200 ---"
+  "${BIN}" norm -i "${SYNTH_ROOT}/objects1000_vertices200" \
+    -o "${NORM_ROOT}/synthetic_objects1000_vertices200"
 fi
 
+echo ""
 echo "=== Raw datasets ==="
-for d in "${RAW_ROOT}"/*; do
-  [[ -d "${d}" ]] || continue
-  name="$(basename "${d}")"
-  out="${NORM_ROOT}/${name}"
-  echo "--- ${name} ---"
-  if [[ "${MODE}" == "full" ]]; then
-    normalize_dir "${d}" "${out}" 0
-  else
-    normalize_dir "${d}" "${out}" 100
-  fi
-done
+if [[ "${MODE}" == "full" ]]; then
+  echo "--- ModelNet40 ---"
+  "${BIN}" norm -i "${RAW_ROOT}/ModelNet40" -o "${NORM_ROOT}/ModelNet40"
+  echo "--- ModelNet40_auto_aligned ---"
+  "${BIN}" norm -i "${RAW_ROOT}/ModelNet40_auto_aligned" \
+    -o "${NORM_ROOT}/ModelNet40_auto_aligned"
+  echo "--- ModelNet40_manually_aligned ---"
+  "${BIN}" norm -i "${RAW_ROOT}/ModelNet40_manually_aligned" \
+    -o "${NORM_ROOT}/ModelNet40_manually_aligned"
+  echo "--- ShapeNetCore ---"
+  "${BIN}" norm -i "${RAW_ROOT}/ShapeNetCore" -o "${NORM_ROOT}/ShapeNetCore"
+else
+  echo "--- ModelNet40 ---"
+  "${BIN}" norm -i "${RAW_ROOT}/ModelNet40" -o "${NORM_ROOT}/ModelNet40" --max-objects 100
+  echo "--- ModelNet40_auto_aligned ---"
+  "${BIN}" norm -i "${RAW_ROOT}/ModelNet40_auto_aligned" \
+    -o "${NORM_ROOT}/ModelNet40_auto_aligned" --max-objects 100
+  echo "--- ModelNet40_manually_aligned ---"
+  "${BIN}" norm -i "${RAW_ROOT}/ModelNet40_manually_aligned" \
+    -o "${NORM_ROOT}/ModelNet40_manually_aligned" --max-objects 100
+  echo "--- ShapeNetCore ---"
+  "${BIN}" norm -i "${RAW_ROOT}/ShapeNetCore" -o "${NORM_ROOT}/ShapeNetCore" --max-objects 100
+fi
 
+echo ""
 echo "Done: ${NORM_ROOT}"
-
