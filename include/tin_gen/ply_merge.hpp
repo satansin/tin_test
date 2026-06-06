@@ -12,6 +12,8 @@
 
 namespace tin_gen {
 
+struct DatasetMeshListing;
+
 inline constexpr const char* kPlyMergeManifestFilename = "ply_merge_manifest.txt";
 inline constexpr const char* kPlyMergeBundleExtension = ".tinply";
 inline constexpr const char* kPackSettingFilename = "pack.setting";
@@ -67,6 +69,32 @@ struct PlyMergeResult {
 /// Read one mesh by 0-based index from the manifest order.
 [[nodiscard]] TinMesh read_ply_from_merge_by_index(const std::filesystem::path& manifest_path,
                                                    std::size_t mesh_index);
+
+/// Efficient pack reader: manifest and each bundle file are read from storage once.
+class PlyMergeDatasetReader {
+ public:
+  explicit PlyMergeDatasetReader(const std::filesystem::path& manifest_path,
+                                 std::size_t max_objects = 0);
+
+  [[nodiscard]] std::size_t mesh_count() const { return entries_.size(); }
+  [[nodiscard]] const PlyMergeManifest& manifest() const { return manifest_; }
+  [[nodiscard]] const std::vector<PlyMergeEntry>& entries() const { return entries_; }
+
+  /// Build a dataset listing (paths / bundle names) without re-reading the manifest.
+  [[nodiscard]] DatasetMeshListing make_listing(const std::filesystem::path& input_dir) const;
+
+  /// Read mesh @p index using the in-memory bundle buffer for its bundle file.
+  [[nodiscard]] TinMesh read_mesh(std::size_t index);
+
+ private:
+  void ensure_bundle_loaded(const std::string& bundle_file);
+  [[nodiscard]] TinMesh read_mesh_from_entry(const PlyMergeEntry& entry);
+
+  PlyMergeManifest manifest_;
+  std::vector<PlyMergeEntry> entries_;
+  std::string loaded_bundle_file_;
+  std::vector<char> loaded_bundle_bytes_;
+};
 
 // --- Pack discovery ---
 

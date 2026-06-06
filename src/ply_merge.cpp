@@ -3,9 +3,12 @@
 #include "tin_gen/mesh_helper.hpp"
 #include "tin_gen/tin_mesh.hpp"
 
+#include <algorithm>
 #include <cctype>
 #include <cstdio>
 #include <fstream>
+#include <iomanip>
+#include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -49,46 +52,108 @@ fs::path resolve_manifest_path(const fs::path& manifest_path) {
   return manifest_path;
 }
 
-const PlyMergeEntry* find_entry(const PlyMergeManifest& manifest, const std::string_view filename) {
-  for (const auto& entry : manifest.entries) {
-    if (entry.original_filename == filename) {
-      return &entry;
-    }
-  }
-  return nullptr;
-}
-
-const PlyMergeEntry* find_entry_by_index(const PlyMergeManifest& manifest,
-                                         const std::size_t mesh_index) {
-  for (const auto& entry : manifest.entries) {
-    if (entry.mesh_index == mesh_index) {
-      return &entry;
-    }
-  }
-  return nullptr;
-}
-
-TinMesh read_ply_from_manifest_entry(const PlyMergeManifest& manifest, const PlyMergeEntry& entry) {
-  const fs::path bundle_path = manifest.manifest_path.parent_path() / entry.bundle_file;
-  std::ifstream bundle(bundle_path, std::ios::binary);
-  if (!bundle) {
+std::vector<char> read_bundle_file_bytes(const fs::path& bundle_path) {
+  std::ifstream in(bundle_path, std::ios::binary);
+  if (!in) {
     throw std::runtime_error("Failed to open PLY merge bundle: " + bundle_path.string());
   }
-  bundle.seekg(static_cast<std::streamoff>(entry.offset_bytes));
-  if (!bundle) {
-    throw std::runtime_error("Failed to seek PLY merge bundle: " + bundle_path.string());
+
+  in.seekg(0, std::ios::end);
+  const std::streamoff end = in.tellg();
+  if (end < 0) {
+    throw std::runtime_error("Failed to size PLY merge bundle: " + bundle_path.string());
+  }
+  in.seekg(0, std::ios::beg);
+
+  std::vector<char> bytes(static_cast<std::size_t>(end));
+  in.read(bytes.data(), end);
+  if (!in) {
+    throw std::runtime_error("Failed to read PLY merge bundle: " + bundle_path.string());
+  }
+  return bytes;
+}
+
+}  // namespace
+
+PlyMergeDatasetReader::PlyMergeDatasetReader(const fs::path& manifest_path,
+                                             const std::size_t max_objects) {
+  manifest_ = load_ply_merge_manifest(manifest_path);
+  entries_ = manifest_.entries;
+  std::sort(entries_.begin(), entries_.end(),
+            [](const PlyMergeEntry& a, const PlyMergeEntry& b) {
+              return a.mesh_index < b.mesh_index;
+            });
+  if (max_objects > 0 && entries_.size() > max_objects) {
+    entries_.resize(max_objects);
+  }
+  if (entries_.empty()) {
+    throw std::runtime_error("PLY merge manifest has no entries: " +
+                             manifest_.manifest_path.string());
+  }
+}
+
+DatasetMeshListing PlyMergeDatasetReader::make_listing(const fs::path& input_dir) const {
+  DatasetMeshListing listing;
+  listing.source = DatasetMeshSource::Pack;
+  listing.input_dir = input_dir;
+  listing.pack_manifest = manifest_.manifest_path;
+  listing.paths.reserve(entries_.size());
+  listing.pack_bundles.reserve(entries_.size());
+
+  std::string last_bundle;
+  for (const PlyMergeEntry& entry : entries_) {
+    listing.paths.push_back(input_dir / entry.original_filename);
+    listing.pack_bundles.push_back(entry.bundle_file);
+    if (entry.bundle_file != last_bundle) {
+      listing.pack_bundle_names.push_back(entry.bundle_file);
+      last_bundle = entry.bundle_file;
+    }
+  }
+  return listing;
+}
+
+void PlyMergeDatasetReader::ensure_bundle_loaded(const std::string& bundle_file) {
+  if (loaded_bundle_file_ == bundle_file) {
+    return;
   }
 
-  std::vector<char> bytes(static_cast<std::size_t>(entry.size_bytes));
-  bundle.read(bytes.data(), static_cast<std::streamsize>(entry.size_bytes));
-  if (!bundle || static_cast<std::uint64_t>(bundle.gcount()) != entry.size_bytes) {
-    throw std::runtime_error("Unexpected EOF reading PLY from merge bundle: " + bundle_path.string());
+  const fs::path bundle_path = manifest_.manifest_path.parent_path() / bundle_file;
+  loaded_bundle_bytes_ = read_bundle_file_bytes(bundle_path);
+  loaded_bundle_file_ = bundle_file;
+  const double bytes = static_cast<double>(loaded_bundle_bytes_.size());
+  std::cout << std::fixed;
+  std::cout << "pack: loaded bundle " << bundle_file << " into memory (";
+  if (bytes >= 1e9) {
+    std::cout << std::setprecision(2) << (bytes / 1e9) << " GB";
+  } else {
+    std::cout << std::setprecision(2) << (bytes / 1e6) << " MB";
+  }
+  std::cout << ")\n" << std::flush;
+}
+
+TinMesh PlyMergeDatasetReader::read_mesh_from_entry(const PlyMergeEntry& entry) {
+  ensure_bundle_loaded(entry.bundle_file);
+
+  const std::uint64_t end_bytes = entry.offset_bytes + entry.size_bytes;
+  if (end_bytes > loaded_bundle_bytes_.size()) {
+    throw std::runtime_error("PLY merge entry exceeds bundle size: " + entry.bundle_file + "[" +
+                             entry.original_filename + "]");
   }
 
-  std::istringstream in(std::string(bytes.begin(), bytes.end()));
+  const char* const start = loaded_bundle_bytes_.data() + entry.offset_bytes;
+  std::istringstream in(std::string(start, start + entry.size_bytes));
   const std::string context = entry.bundle_file + "[" + entry.original_filename + "]";
   return read_ply_stream(in, context);
 }
+
+TinMesh PlyMergeDatasetReader::read_mesh(const std::size_t index) {
+  if (index >= entries_.size()) {
+    throw std::out_of_range("PlyMergeDatasetReader::read_mesh: index out of range");
+  }
+  return read_mesh_from_entry(entries_[index]);
+}
+
+namespace {
 
 std::uint64_t file_size_bytes(const fs::path& path) {
   std::error_code ec;
@@ -356,22 +421,23 @@ PlyMergeResult write_ply_merge(const fs::path& source_dir, const fs::path& outpu
 }
 
 TinMesh read_ply_from_merge(const fs::path& manifest_path, const std::string_view original_filename) {
-  const PlyMergeManifest manifest = load_ply_merge_manifest(manifest_path);
-  const PlyMergeEntry* entry = find_entry(manifest, original_filename);
-  if (entry == nullptr) {
-    throw std::runtime_error("PLY merge manifest missing mesh: " + std::string(original_filename));
+  PlyMergeDatasetReader reader(manifest_path);
+  for (std::size_t i = 0; i < reader.mesh_count(); ++i) {
+    if (reader.entries()[i].original_filename == original_filename) {
+      return reader.read_mesh(i);
+    }
   }
-  return read_ply_from_manifest_entry(manifest, *entry);
+  throw std::runtime_error("PLY merge manifest missing mesh: " + std::string(original_filename));
 }
 
 TinMesh read_ply_from_merge_by_index(const fs::path& manifest_path, const std::size_t mesh_index) {
-  const PlyMergeManifest manifest = load_ply_merge_manifest(manifest_path);
-  const PlyMergeEntry* entry = find_entry_by_index(manifest, mesh_index);
-  if (entry == nullptr) {
-    throw std::runtime_error("PLY merge manifest missing mesh index: " +
-                             std::to_string(mesh_index));
+  PlyMergeDatasetReader reader(manifest_path);
+  for (std::size_t i = 0; i < reader.mesh_count(); ++i) {
+    if (reader.entries()[i].mesh_index == mesh_index) {
+      return reader.read_mesh(i);
+    }
   }
-  return read_ply_from_manifest_entry(manifest, *entry);
+  throw std::runtime_error("PLY merge manifest missing mesh index: " + std::to_string(mesh_index));
 }
 
 std::optional<fs::path> find_pack_manifest_for_dataset(const fs::path& input_dir) {

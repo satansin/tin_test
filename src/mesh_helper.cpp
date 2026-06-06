@@ -273,13 +273,30 @@ LoadedDatasetMeshes load_all_dataset_meshes(const fs::path& input_dir, ListMeshF
                                              const std::string_view command,
                                              const std::string_view progress_label) {
   LoadedDatasetMeshes loaded;
+
+  if (const std::optional<fs::path> manifest = find_pack_manifest_for_dataset(input_dir)) {
+    PlyMergeDatasetReader reader(*manifest, opts.max_objects);
+    loaded.listing = reader.make_listing(input_dir);
+    loaded.meshes.reserve(reader.mesh_count());
+
+    DatasetMeshLoadProgress progress(loaded.listing, progress_label);
+    for (std::size_t i = 0; i < reader.mesh_count(); ++i) {
+      progress.before_mesh(i);
+      TinMesh mesh = reader.read_mesh(i);
+      require_non_empty_mesh(mesh, command, loaded.listing.paths[i]);
+      loaded.meshes.push_back(std::move(mesh));
+      progress.mark_loaded(i + 1);
+    }
+    return loaded;
+  }
+
   loaded.listing = list_dataset_meshes_for_command(input_dir, opts, command);
   loaded.meshes.reserve(loaded.listing.paths.size());
 
   DatasetMeshLoadProgress progress(loaded.listing, progress_label);
   for (std::size_t i = 0; i < loaded.listing.paths.size(); ++i) {
     progress.before_mesh(i);
-    TinMesh mesh = read_dataset_mesh(loaded.listing, i);
+    TinMesh mesh = read_ply(loaded.listing.paths[i].string());
     require_non_empty_mesh(mesh, command, loaded.listing.paths[i]);
     loaded.meshes.push_back(std::move(mesh));
     progress.mark_loaded(i + 1);
