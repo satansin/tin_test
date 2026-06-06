@@ -151,12 +151,11 @@ Both commands share the same flags; defaults depend on the command.
 | `-i, --input-dir DIR` | (required) | (required) | Folder containing `.ply` files |
 | `-o, --output-dir DIR` | `sample_kdvertices` | `sample_rsvertices` | Output directory |
 | `--max-objects N` | all | all | Process at most N meshes |
-| `--combined` | off | off | Write one bundle instead of per-mesh files |
-| `--combined-file PATH` | `combined.kdtree` | `combined.rstree` | Bundle filename with `--combined` |
+| `--combined` | off | off | Write split bundles + manifest (5000 indexes per `merged_NNN` file) |
 
-**`rs`** builds an **R*-tree** index (default spatial index for `distance` / `pairwise_distance`). Each `object_N.ply` → `object_N.rstree` (`TINRSV1`), or one `combined.rstree` bundle (`TINRSB1`) with `--combined`.
+**`rs`** builds an **R*-tree** index (default spatial index for `distance` / `pairwise_distance`). Each `object_N.ply` → `object_N.rstree` (`TINRSV1`), or with `--combined`: `merged_000.tinrs`, … plus `rs_merge_manifest.txt` (5000 trees per bundle, same layout as PLY pack).
 
-**`kd`** builds a **KD-tree** index. Each `object_N.ply` → `object_N.kdtree` (`TINKDV1`), or one `combined.kdtree` bundle (`TINKDB1`) with `--combined`.
+**`kd`** builds a **KD-tree** index. Each `object_N.ply` → `object_N.kdtree` (`TINKDV1`), or with `--combined`: `merged_000.tinkd`, … plus `kd_merge_manifest.txt`.
 
 ```bash
 ./build/release/tin_test rs --input-dir sample_normalized --combined
@@ -193,7 +192,7 @@ Default output: `sample_pd/pairwise_distances_<algorithm>.txt` (e.g. `pairwise_d
 ./build/release/tin_test pd -i sample_normalized --rs-dir sample_rsvertices
 ```
 
-With `--rs-dir` (or `-rs`), R*-trees are loaded from that folder: if `combined.rstree` exists (`rs --combined`), all trees are read from the bundle; otherwise each `object_N.rstree` is loaded separately. Without `--rs-dir`, in-memory R*-trees are built before the matrix; console output includes separate timing for **rs build** / **rs load** and **matrix** computation. Use `--kd-dir` (or `-kd`) to load KD-trees instead (`--rs-dir` and `--kd-dir` are mutually exclusive).
+With `--rs-dir` (or `-rs`), R*-trees are loaded from that folder: if `rs_merge_manifest.txt` exists (`rs --combined`), trees are read from split `merged_*.tinrs` bundles; otherwise each `object_N.rstree` is loaded separately. Without `--rs-dir`, in-memory R*-trees are built before the matrix; console output includes separate timing for **rs build** / **rs load** and **matrix** computation. Use `--kd-dir` (or `-kd`) to load KD-trees instead (`--rs-dir` and `--kd-dir` are mutually exclusive).
 
 Command aliases: `gen` (generate), `norm` (normalize), `kd` (kdvertices), `rs`, `dist` (distance), `pd` (pairwise_distance).
 
@@ -255,9 +254,9 @@ Counts and formats for the four real-world datasets used in experiments. Folder 
 
 `compress_datasets.sh` runs `tin_test compress` on each normalized subfolder and writes bundle files + `ply_merge_manifest.txt` under `../tin_exp/datasets_norm_pack/<name>/` (max 5000 meshes per `.tinply` bundle).
 
-`build_rs_datasets.sh` runs `tin_test rs --combined` on each packed subfolder (`datasets_norm_pack/`) and writes one bundle per dataset (e.g. `datasets_norm_rs/ModelNet40/combined.rstree`). Run `compress_datasets.sh` first.
+`build_rs_datasets.sh` runs `tin_test rs --combined` on each packed subfolder (`datasets_norm_pack/`) and writes split bundles per dataset (e.g. `datasets_norm_rs/ModelNet40/rs_merge_manifest.txt`, `merged_000.tinrs`, …). Run `compress_datasets.sh` first.
 
-`build_kd_datasets.sh` runs `tin_test kd --combined` on each packed subfolder and writes one bundle per dataset (e.g. `datasets_norm_kd/ModelNet40/combined.kdtree`). Run `compress_datasets.sh` first.
+`build_kd_datasets.sh` runs `tin_test kd --combined` on each packed subfolder and writes split bundles per dataset (e.g. `datasets_norm_kd/ModelNet40/kd_merge_manifest.txt`, `merged_000.tinkd`, …). Run `compress_datasets.sh` first.
 
 `compute_pd_datasets.sh` runs `tin_test pd --algorithm vertex --rs-dir …` on each packed dataset. **Small** mode: all synthetic presets plus at most 100 meshes per raw dataset; **full** mode: every subfolder under `datasets_norm_pack`, no mesh limit. Run `compress_datasets.sh` and `build_rs_datasets.sh` first.
 

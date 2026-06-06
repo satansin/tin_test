@@ -106,10 +106,8 @@ IndexVerticesConfig default_index_vertices_config(const VertexIndexKind kind) {
   config.kind = kind;
   if (kind == VertexIndexKind::Kd) {
     config.output_dir = "sample_kdvertices";
-    config.combined_file = "combined.kdtree";
   } else {
     config.output_dir = "sample_rsvertices";
-    config.combined_file = "combined.rstree";
   }
   return config;
 }
@@ -133,9 +131,6 @@ std::optional<IndexVerticesConfig> parse_index_vertices_config(const int argc, c
       config.max_objects = static_cast<std::size_t>(std::stoull(need_arg_value(argc, argv, i, arg.c_str())));
     } else if (arg == "--combined" || arg == "--bundle") {
       config.combined_output = true;
-    } else if (arg == "--combined-file") {
-      config.combined_output = true;
-      config.combined_file = need_arg_value(argc, argv, i, "--combined-file");
     } else if (accepts_positional_input_dir(arg, config.input_dir)) {
       config.input_dir = arg;
     } else {

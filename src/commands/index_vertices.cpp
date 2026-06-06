@@ -1,6 +1,7 @@
 #include "tin_gen/commands/index_vertices.hpp"
 
 #include "tin_gen/cpu_timer.hpp"
+#include "tin_gen/index_merge.hpp"
 #include "tin_gen/kd_tree.hpp"
 #include "tin_gen/mesh_helper.hpp"
 #include "tin_gen/ply_merge.hpp"
@@ -9,7 +10,9 @@
 
 #include <cstdlib>
 #include <filesystem>
+#include <iomanip>
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -40,6 +43,8 @@ struct TimingTotals {
   double read_wall_seconds = 0.0;
   double build_cpu_seconds = 0.0;
   double build_wall_seconds = 0.0;
+  double save_cpu_seconds = 0.0;
+  double save_wall_seconds = 0.0;
 };
 
 void accumulate_timing(TimingTotals& totals, const CpuTimer& cpu, const WallTimer& wall) {
@@ -52,76 +57,102 @@ void accumulate_build_timing(TimingTotals& totals, const CpuTimer& cpu, const Wa
   totals.build_wall_seconds += wall.elapsed_seconds();
 }
 
-void print_timing_totals(const std::string_view label, const TimingTotals& totals) {
-  std::cout << std::fixed << std::setprecision(6);
-  std::cout << label << " timing:\n"
-            << "  CPU time: " << totals.read_cpu_seconds << " s\n"
-            << "  Wall time: " << totals.read_wall_seconds << " s\n";
+void accumulate_save_timing(TimingTotals& totals, const CpuTimer& cpu, const WallTimer& wall) {
+  totals.save_cpu_seconds += cpu.elapsed_seconds();
+  totals.save_wall_seconds += wall.elapsed_seconds();
 }
 
-void print_build_timing_totals(const std::string_view label, const TimingTotals& totals) {
+void print_timing_totals(const std::string_view label, const double cpu_seconds,
+                         const double wall_seconds) {
   std::cout << std::fixed << std::setprecision(6);
   std::cout << label << " timing:\n"
-            << "  CPU time: " << totals.build_cpu_seconds << " s\n"
-            << "  Wall time: " << totals.build_wall_seconds << " s\n";
+            << "  CPU time: " << cpu_seconds << " s\n"
+            << "  Wall time: " << wall_seconds << " s\n";
 }
 
-void save_kd_vertex_indexes(const IndexVerticesConfig& config, const fs::path& output_dir,
-                            const std::vector<KdTreeBundleEntry>& trees) {
-  if (config.combined_output) {
-    save_kd_tree_bundle((output_dir / config.combined_file).string(), trees);
+struct IndexOutputSink {
+  bool combined = false;
+  fs::path output_dir;
+  std::unique_ptr<RsIndexMergeWriter> rs_writer;
+  std::unique_ptr<KdIndexMergeWriter> kd_writer;
+};
+
+IndexOutputSink make_output_sink(const IndexVerticesConfig& config, const fs::path& input_dir) {
+  IndexOutputSink sink;
+  sink.combined = config.combined_output;
+  sink.output_dir = fs::path(config.output_dir);
+  if (!sink.combined) {
+    return sink;
+  }
+
+  if (config.kind == VertexIndexKind::Kd) {
+    sink.kd_writer = std::make_unique<KdIndexMergeWriter>(sink.output_dir, input_dir);
+  } else {
+    sink.rs_writer = std::make_unique<RsIndexMergeWriter>(sink.output_dir, input_dir);
+  }
+  return sink;
+}
+
+void save_built_index(const IndexVerticesConfig& config, IndexOutputSink& sink,
+                      const std::size_t mesh_index, const std::string& name,
+                      std::vector<Point> points, TimingTotals& timings) {
+  CpuTimer cpu_save;
+  WallTimer wall_save;
+  cpu_save.start();
+  wall_save.start();
+
+  if (sink.combined) {
+    if (config.kind == VertexIndexKind::Kd) {
+      sink.kd_writer->add(mesh_index, name, KdTree3d(std::move(points)));
+    } else {
+      sink.rs_writer->add(mesh_index, name, RsTree3d(std::move(points)));
+    }
+  } else if (config.kind == VertexIndexKind::Kd) {
+    KdTree3d(std::move(points)).save((sink.output_dir / (name + ".kdtree")).string());
+  } else {
+    RsTree3d(std::move(points)).save((sink.output_dir / (name + ".rstree")).string());
+  }
+
+  cpu_save.stop();
+  wall_save.stop();
+  accumulate_save_timing(timings, cpu_save, wall_save);
+}
+
+void finalize_output(const IndexVerticesConfig& config, IndexOutputSink& sink,
+                     TimingTotals& timings) {
+  if (!sink.combined) {
     return;
   }
 
-  for (const auto& entry : trees) {
-    entry.tree.save((output_dir / (entry.name + ".kdtree")).string());
+  CpuTimer cpu_save;
+  WallTimer wall_save;
+  cpu_save.start();
+  wall_save.start();
+  if (config.kind == VertexIndexKind::Kd) {
+    sink.kd_writer->finish();
+  } else {
+    sink.rs_writer->finish();
   }
-}
-
-void save_rs_vertex_indexes(const IndexVerticesConfig& config, const fs::path& output_dir,
-                            const std::vector<RsTreeBundleEntry>& trees) {
-  if (config.combined_output) {
-    save_rs_tree_bundle((output_dir / config.combined_file).string(), trees);
-    return;
-  }
-
-  for (const auto& entry : trees) {
-    entry.tree.save((output_dir / (entry.name + ".rstree")).string());
-  }
-}
-
-void build_kd_tree_for_mesh(std::vector<KdTreeBundleEntry>& trees, const std::string& name,
-                            std::vector<Point> points) {
-  trees.push_back(KdTreeBundleEntry{name, KdTree3d(std::move(points))});
-}
-
-void build_rs_tree_for_mesh(std::vector<RsTreeBundleEntry>& trees, const std::string& name,
-                            std::vector<Point> points) {
-  trees.push_back(RsTreeBundleEntry{name, RsTree3d(std::move(points))});
+  cpu_save.stop();
+  wall_save.stop();
+  accumulate_save_timing(timings, cpu_save, wall_save);
 }
 
 void process_pack_meshes(const IndexVerticesConfig& config, const IndexVerticesLabels& labels,
                          const fs::path& input_dir, const fs::path& manifest_path,
-                         DatasetMeshListing& listing, TimingTotals& timings,
-                         std::vector<KdTreeBundleEntry>& kd_trees,
-                         std::vector<RsTreeBundleEntry>& rs_trees) {
+                         DatasetMeshListing& listing, IndexOutputSink& sink,
+                         TimingTotals& timings, std::size_t& mesh_count) {
   const std::string load_label = std::string(labels.command) + " mesh files";
   PlyMergeDatasetReader reader(manifest_path, config.max_objects);
   listing = reader.make_listing(input_dir);
 
-  DatasetMeshLoadProgress progress(listing, load_label);
+  DatasetMeshLoadProgress progress(listing, load_label, "built");
   reader.set_bundle_loaded_callback([&progress](const PackBundleLoadedInfo& info) {
     progress.on_bundle_loaded(info.bundle_file, info.size_bytes, info.read_wall_seconds,
                               info.read_cpu_seconds, info.mesh_index);
   });
 
-  const std::size_t mesh_count = reader.mesh_count();
-  if (config.kind == VertexIndexKind::Kd) {
-    kd_trees.reserve(mesh_count);
-  } else {
-    rs_trees.reserve(mesh_count);
-  }
-
+  mesh_count = reader.mesh_count();
   for (std::size_t i = 0; i < mesh_count; ++i) {
     CpuTimer cpu_read;
     WallTimer wall_read;
@@ -140,15 +171,11 @@ void process_pack_meshes(const IndexVerticesConfig& config, const IndexVerticesL
     cpu_build.start();
     wall_build.start();
     std::vector<Point> points = tin_mesh_vertices(mesh);
-    if (config.kind == VertexIndexKind::Kd) {
-      build_kd_tree_for_mesh(kd_trees, name, std::move(points));
-    } else {
-      build_rs_tree_for_mesh(rs_trees, name, std::move(points));
-    }
     cpu_build.stop();
     wall_build.stop();
     accumulate_build_timing(timings, cpu_build, wall_build);
 
+    save_built_index(config, sink, i, name, std::move(points), timings);
     progress.mark_loaded(i + 1);
 
     const auto [first_index, last_index] = pack_bundle_mesh_range(listing, i);
@@ -163,19 +190,14 @@ void process_pack_meshes(const IndexVerticesConfig& config, const IndexVerticesL
 
 void process_per_file_meshes(const IndexVerticesConfig& config, const IndexVerticesLabels& labels,
                              const fs::path& input_dir, DatasetMeshListing& listing,
-                             TimingTotals& timings, std::vector<KdTreeBundleEntry>& kd_trees,
-                             std::vector<RsTreeBundleEntry>& rs_trees) {
+                             IndexOutputSink& sink, TimingTotals& timings,
+                             std::size_t& mesh_count) {
   const std::string load_label = std::string(labels.command) + " mesh files";
   listing = list_dataset_meshes_for_command(input_dir, ply_list_options(config.max_objects),
                                               labels.command);
 
-  DatasetMeshLoadProgress progress(listing, load_label);
-  const std::size_t mesh_count = listing.paths.size();
-  if (config.kind == VertexIndexKind::Kd) {
-    kd_trees.reserve(mesh_count);
-  } else {
-    rs_trees.reserve(mesh_count);
-  }
+  DatasetMeshLoadProgress progress(listing, load_label, "built");
+  mesh_count = listing.paths.size();
 
   for (std::size_t i = 0; i < mesh_count; ++i) {
     CpuTimer cpu_read;
@@ -195,15 +217,11 @@ void process_per_file_meshes(const IndexVerticesConfig& config, const IndexVerti
     cpu_build.start();
     wall_build.start();
     std::vector<Point> points = tin_mesh_vertices(mesh);
-    if (config.kind == VertexIndexKind::Kd) {
-      build_kd_tree_for_mesh(kd_trees, name, std::move(points));
-    } else {
-      build_rs_tree_for_mesh(rs_trees, name, std::move(points));
-    }
     cpu_build.stop();
     wall_build.stop();
     accumulate_build_timing(timings, cpu_build, wall_build);
 
+    save_built_index(config, sink, i, name, std::move(points), timings);
     progress.mark_loaded(i + 1);
   }
 }
@@ -223,44 +241,43 @@ int run_index_vertices(const IndexVerticesConfig& config) {
 
   DatasetMeshListing listing;
   TimingTotals timings;
-  std::vector<KdTreeBundleEntry> kd_trees;
-  std::vector<RsTreeBundleEntry> rs_trees;
+  std::size_t mesh_count = 0;
+  IndexOutputSink sink = make_output_sink(config, input_dir);
 
   if (const std::optional<fs::path> manifest = find_pack_manifest_for_dataset(input_dir)) {
-    process_pack_meshes(config, labels, input_dir, *manifest, listing, timings, kd_trees,
-                        rs_trees);
+    process_pack_meshes(config, labels, input_dir, *manifest, listing, sink, timings, mesh_count);
   } else {
-    process_per_file_meshes(config, labels, input_dir, listing, timings, kd_trees, rs_trees);
+    process_per_file_meshes(config, labels, input_dir, listing, sink, timings, mesh_count);
   }
 
-  CpuTimer cpu_save;
-  WallTimer wall_save;
-  cpu_save.start();
-  wall_save.start();
-  if (config.kind == VertexIndexKind::Kd) {
-    save_kd_vertex_indexes(config, output_dir, kd_trees);
-  } else {
-    save_rs_vertex_indexes(config, output_dir, rs_trees);
-  }
-  cpu_save.stop();
-  wall_save.stop();
-
-  const std::size_t mesh_count =
-      config.kind == VertexIndexKind::Kd ? kd_trees.size() : rs_trees.size();
+  finalize_output(config, sink, timings);
 
   std::cout << labels.command << '\n'
             << "  input: " << input_dir.string() << " (" << mesh_count << " meshes)\n";
   print_dataset_mesh_source(std::cout, listing);
   std::cout << "  output: " << output_dir.string();
   if (config.combined_output) {
-    std::cout << " (" << config.combined_file << ")\n";
+    if (config.kind == VertexIndexKind::Kd) {
+      std::cout << " (" << kKdMergeManifestFilename;
+      if (sink.kd_writer) {
+        std::cout << ", " << sink.kd_writer->bundle_count() << " bundles merged_*.tinkd";
+      }
+    } else {
+      std::cout << " (" << kRsMergeManifestFilename;
+      if (sink.rs_writer) {
+        std::cout << ", " << sink.rs_writer->bundle_count() << " bundles merged_*.tinrs";
+      }
+    }
+    std::cout << ")\n";
   } else {
     std::cout << " (" << labels.per_file_label << ")\n";
   }
-  print_timing_totals(std::string(labels.command) + " read mesh files", timings);
-  print_build_timing_totals(std::string(labels.command) + " build " + labels.build_label, timings);
-  print_cpu_wall_timing(std::string(labels.command) + " save " + labels.build_label, cpu_save,
-                        wall_save);
+  print_timing_totals(std::string(labels.command) + " read mesh files", timings.read_cpu_seconds,
+                      timings.read_wall_seconds);
+  print_timing_totals(std::string(labels.command) + " build " + labels.build_label,
+                      timings.build_cpu_seconds, timings.build_wall_seconds);
+  print_timing_totals(std::string(labels.command) + " save " + labels.build_label,
+                      timings.save_cpu_seconds, timings.save_wall_seconds);
 
   return EXIT_SUCCESS;
 }

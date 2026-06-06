@@ -47,6 +47,7 @@ add_library(tin_gen
   src/kd_tree.cpp
   src/rs_tree.cpp
   src/ply_merge.cpp
+  src/index_merge.cpp
   src/vertex_distance.cpp
   src/distance_algorithm.cpp
   src/convex_hull_3d.cpp

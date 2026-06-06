@@ -35,7 +35,6 @@ struct IndexVerticesConfig {
   std::string output_dir;
   std::size_t max_objects = 0;  // 0 = all
   bool combined_output = false;
-  std::string combined_file;
 };
 
 [[nodiscard]] IndexVerticesConfig default_index_vertices_config(VertexIndexKind kind);

@@ -1,5 +1,7 @@
 #include "tin_gen/rs_tree.hpp"
 
+#include "tin_gen/index_merge.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -8,6 +10,7 @@
 #include <queue>
 #include <sstream>
 #include <stdexcept>
+#include <unordered_set>
 #include <vector>
 
 namespace tin_gen {
@@ -517,18 +520,6 @@ bool is_rs_tree_bundle_file(const fs::path& path) {
   return std::string(magic, 8) == std::string(kBundleMagic, 8);
 }
 
-std::optional<fs::path> find_rs_tree_bundle_in_directory(const fs::path& dir,
-                                                        const std::string_view bundle_filename) {
-  if (!fs::exists(dir) || !fs::is_directory(dir)) {
-    return std::nullopt;
-  }
-  const fs::path preferred = dir / std::string(bundle_filename);
-  if (is_rs_tree_bundle_file(preferred)) {
-    return preferred;
-  }
-  return std::nullopt;
-}
-
 void verify_rs_tree_vertex_count(const std::size_t expected_vertex_count, const RsTree3d& tree,
                                 const std::string& context) {
   if (tree.points().size() != expected_vertex_count) {
@@ -540,7 +531,7 @@ void verify_rs_tree_vertex_count(const std::size_t expected_vertex_count, const 
 
 LoadRsTreesFromFolderResult load_rs_trees_from_folder(
     const fs::path& rs_dir, const std::vector<fs::path>& ply_files,
-    const std::vector<std::size_t>& expected_vertex_counts, LoadRsTreesFromFolderOptions opts) {
+    const std::vector<std::size_t>& expected_vertex_counts) {
   if (expected_vertex_counts.size() != ply_files.size()) {
     throw std::invalid_argument("load_rs_trees_from_folder: expected_vertex_counts size must match "
                                 "ply_files");
@@ -548,13 +539,20 @@ LoadRsTreesFromFolderResult load_rs_trees_from_folder(
 
   LoadRsTreesFromFolderResult result;
 
-  if (const std::optional<fs::path> bundle_path =
-          find_rs_tree_bundle_in_directory(rs_dir, opts.bundle_filename)) {
+  if (const std::optional<fs::path> manifest_path = find_rs_index_merge_manifest(rs_dir)) {
+    const IndexMergeManifest manifest = load_rs_index_merge_manifest(*manifest_path);
     result.source = RsTreeFolderLoadSource::Bundle;
-    result.bundle_path = bundle_path;
-    const std::vector<RsTreeBundleEntry> entries = load_rs_tree_bundle(bundle_path->string());
-    for (auto& entry : entries) {
-      result.trees_by_stem.emplace(std::move(entry.name), std::move(entry.tree));
+    result.manifest_path = manifest_path;
+
+    std::unordered_set<std::string> loaded_bundles;
+    for (const IndexMergeEntry& entry : manifest.entries) {
+      if (loaded_bundles.insert(entry.bundle_file).second) {
+        const fs::path bundle_path = rs_dir / entry.bundle_file;
+        const std::vector<RsTreeBundleEntry> entries = load_rs_tree_bundle(bundle_path.string());
+        for (auto& bundle_entry : entries) {
+          result.trees_by_stem.emplace(std::move(bundle_entry.name), std::move(bundle_entry.tree));
+        }
+      }
     }
   } else {
     result.source = RsTreeFolderLoadSource::PerFile;
@@ -566,8 +564,8 @@ LoadRsTreesFromFolderResult load_rs_trees_from_folder(
       }
       if (is_rs_tree_bundle_file(rs_path)) {
         throw std::runtime_error(
-            "expected per-mesh rs file but found bundle (use merged bundle at " +
-            std::string(opts.bundle_filename) + "): " + rs_path.string());
+            "expected per-mesh rs file but found bundle (use rs_merge_manifest.txt): " +
+            rs_path.string());
       }
       result.trees_by_stem.emplace(stem, RsTree3d::load(rs_path.string()));
     }
@@ -581,7 +579,7 @@ LoadRsTreesFromFolderResult load_rs_trees_from_folder(
     }
     const std::string context =
         result.source == RsTreeFolderLoadSource::Bundle
-            ? result.bundle_path->string() + " [" + stem + "]"
+            ? result.manifest_path->string() + " [" + stem + "]"
             : (rs_dir / (stem + ".rstree")).string();
     verify_rs_tree_vertex_count(expected_vertex_counts[i], tree_it->second, context);
   }

@@ -115,15 +115,16 @@ inline constexpr std::size_t kFolderMeshLoadProgressInterval = 2000;
 /// Current process resident memory (best effort; 0 if unavailable).
 [[nodiscard]] std::size_t current_process_resident_bytes();
 
-/// Reports @p loaded / @p total, elapsed seconds, and resident memory to stdout.
-void report_folder_mesh_load_progress(std::size_t loaded, std::size_t total,
-                                      double elapsed_seconds, std::string_view label,
-                                      std::string_view bundle = {});
+/// Reports @p count / @p total with @p verb (e.g. "loaded", "built"), elapsed seconds, and memory.
+void report_folder_mesh_load_progress(std::size_t count, std::size_t total, double elapsed_seconds,
+                                      std::string_view label, std::string_view bundle = {},
+                                      std::string_view verb = "loaded");
 
 /// Progress reporter for load_all_dataset_meshes(); prints start/bundle/progress lines.
 class DatasetMeshLoadProgress {
  public:
-  DatasetMeshLoadProgress(const DatasetMeshListing& listing, std::string_view label);
+  DatasetMeshLoadProgress(const DatasetMeshListing& listing, std::string_view label,
+                          std::string_view progress_verb = "loaded");
 
   /// Called after a bundle file has been read from disk; prints load timing and extraction start.
   void on_bundle_loaded(std::string_view bundle_file, std::size_t size_bytes,
@@ -138,6 +139,7 @@ class DatasetMeshLoadProgress {
  private:
   const DatasetMeshListing& listing_;
   std::string label_;
+  std::string progress_verb_;
   std::size_t total_ = 0;
   std::string active_bundle_;
   std::chrono::steady_clock::time_point start_;

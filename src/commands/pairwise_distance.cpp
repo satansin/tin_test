@@ -109,7 +109,7 @@ void assign_rs_trees_from_folder(std::vector<MeshIndex>& meshes,
     meshes[i].index_kind = SpatialIndexKind::Rs;
     const std::string context =
         loaded.source == RsTreeFolderLoadSource::Bundle
-            ? loaded.bundle_path->string() + " [" + stem + "]"
+            ? loaded.manifest_path->string() + " [" + stem + "]"
             : (rs_dir / (stem + ".rstree")).string();
     verify_vertices_match_rs_tree(meshes[i].vertices, meshes[i].rs_tree, context);
   }
@@ -134,7 +134,7 @@ void assign_kdtrees_from_folder(std::vector<MeshIndex>& meshes,
     meshes[i].index_kind = SpatialIndexKind::Kd;
     const std::string context =
         loaded.source == KdTreeFolderLoadSource::Bundle
-            ? loaded.bundle_path->string() + " [" + stem + "]"
+            ? loaded.manifest_path->string() + " [" + stem + "]"
             : (kd_dir / (stem + ".kdtree")).string();
     verify_vertices_match_kdtree(meshes[i].vertices, meshes[i].kd_tree, context);
   }
@@ -202,7 +202,7 @@ void write_pairwise_matrix_vertex(const std::vector<MeshIndex>& meshes,
                                   const DistanceAlgorithm algorithm,
                                   const fs::path& output_path, SpatialIndexKind index_kind,
                                   const std::optional<fs::path>& index_dir,
-                                  const std::optional<fs::path>& index_bundle) {
+                                  const std::optional<fs::path>& index_manifest) {
   const std::size_t n = meshes.size();
   std::vector<std::vector<double>> matrix(n, std::vector<double>(n, 0.0));
 
@@ -231,16 +231,16 @@ void write_pairwise_matrix_vertex(const std::vector<MeshIndex>& meshes,
   if (index_kind == SpatialIndexKind::Kd) {
     if (index_dir) {
       out << "# kd_dir: " << index_dir->string() << '\n';
-      if (index_bundle) {
-        out << "# kdtree_bundle: " << index_bundle->string() << '\n';
+      if (index_manifest) {
+        out << "# kd_manifest: " << index_manifest->string() << '\n';
       }
     } else {
       out << "# kdtree: in-memory (built from ply vertices)\n";
     }
   } else if (index_dir) {
     out << "# rs_dir: " << index_dir->string() << '\n';
-    if (index_bundle) {
-      out << "# rs_bundle: " << index_bundle->string() << '\n';
+    if (index_manifest) {
+      out << "# rs_manifest: " << index_manifest->string() << '\n';
     }
   } else {
     out << "# rs: in-memory (built from ply vertices)\n";
@@ -318,7 +318,7 @@ int run_pairwise_distance(const PairwiseDistanceConfig& config) {
 
   SpatialIndexKind index_kind = SpatialIndexKind::Rs;
   std::optional<fs::path> index_dir;
-  std::optional<fs::path> index_bundle;
+  std::optional<fs::path> index_manifest;
 
   LoadRsTreesFromFolderResult loaded_rs;
   LoadKdTreesFromFolderResult loaded_kdtrees;
@@ -333,7 +333,7 @@ int run_pairwise_distance(const PairwiseDistanceConfig& config) {
     assign_kdtrees_from_folder(meshes, ply_files, *kd_dir, loaded_kdtrees);
     cpu_load.stop();
     wall_load.stop();
-    index_bundle = loaded_kdtrees.bundle_path;
+    index_manifest = loaded_kdtrees.manifest_path;
     print_cpu_wall_timing("pairwise_distance kdtree load", cpu_load, wall_load);
   } else if (rs_dir) {
     index_kind = SpatialIndexKind::Rs;
@@ -345,7 +345,7 @@ int run_pairwise_distance(const PairwiseDistanceConfig& config) {
     assign_rs_trees_from_folder(meshes, ply_files, *rs_dir, loaded_rs);
     cpu_load.stop();
     wall_load.stop();
-    index_bundle = loaded_rs.bundle_path;
+    index_manifest = loaded_rs.manifest_path;
     print_cpu_wall_timing("pairwise_distance rs load", cpu_load, wall_load);
   } else {
     CpuTimer cpu_build;
@@ -366,7 +366,7 @@ int run_pairwise_distance(const PairwiseDistanceConfig& config) {
   switch (config.algorithm) {
     case DistanceAlgorithm::Vertex:
       write_pairwise_matrix_vertex(meshes, config.algorithm, output_path, index_kind, index_dir,
-                                   index_bundle);
+                                   index_manifest);
       break;
     default:
       throw std::logic_error(std::string(kCommand) + ": unhandled algorithm.");
@@ -381,17 +381,16 @@ int run_pairwise_distance(const PairwiseDistanceConfig& config) {
   std::cout << "  algorithm: " << distance_algorithm_name(config.algorithm) << '\n';
   if (kd_dir) {
     std::cout << "  kd_dir: " << kd_dir->string() << '\n';
-    if (loaded_kdtrees.source == KdTreeFolderLoadSource::Bundle &&
-        loaded_kdtrees.bundle_path) {
-      std::cout << "  kdtree_source: bundle\n";
+    if (loaded_kdtrees.source == KdTreeFolderLoadSource::Bundle && loaded_kdtrees.manifest_path) {
+      std::cout << "  kdtree_source: split bundle (" << loaded_kdtrees.manifest_path->filename()
+                << ")\n";
     } else {
       std::cout << "  kdtree_source: per-file\n";
     }
   } else if (rs_dir) {
     std::cout << "  rs_dir: " << rs_dir->string() << '\n';
-    if (loaded_rs.source == RsTreeFolderLoadSource::Bundle &&
-        loaded_rs.bundle_path) {
-      std::cout << "  rs_source: bundle\n";
+    if (loaded_rs.source == RsTreeFolderLoadSource::Bundle && loaded_rs.manifest_path) {
+      std::cout << "  rs_source: split bundle (" << loaded_rs.manifest_path->filename() << ")\n";
     } else {
       std::cout << "  rs_source: per-file\n";
     }

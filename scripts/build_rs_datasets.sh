@@ -8,7 +8,7 @@ set -euo pipefail
 #   ./scripts/build_rs_datasets.sh [small|full]
 #
 # Output (per dataset):
-#   ../tin_exp/datasets_norm_rs/<name>/combined.rstree
+#   ../tin_exp/datasets_norm_rs/<name>/rs_merge_manifest.txt, merged_*.tinrs
 
 MODE="${1:-small}"
 

@@ -75,40 +75,25 @@ void save_kd_tree_bundle(const std::string& filepath,
 [[nodiscard]] std::vector<KdTreeBundleEntry> load_kd_tree_bundle_last(const std::string& filepath,
                                                                      std::size_t count);
 
-/// Default merged bundle filename written by `kdvertices --combined`.
-inline constexpr const char* kDefaultKdTreeBundleFilename = "combined.kdtree";
-
 enum class KdTreeFolderLoadSource { Bundle, PerFile };
-
-struct LoadKdTreesFromFolderOptions {
-  /// Merged bundle filename to try first under the kd-tree directory.
-  std::string bundle_filename = kDefaultKdTreeBundleFilename;
-};
 
 struct LoadKdTreesFromFolderResult {
   KdTreeFolderLoadSource source = KdTreeFolderLoadSource::PerFile;
-  std::optional<std::filesystem::path> bundle_path;
+  std::optional<std::filesystem::path> manifest_path;
   /// Mesh stem (e.g. `object_1`) -> tree.
   std::unordered_map<std::string, KdTree3d> trees_by_stem;
 };
 
 [[nodiscard]] bool is_kdtree_bundle_file(const std::filesystem::path& path);
 
-/// Returns the merged bundle path when present (`TINKDB1`), else nullopt.
-[[nodiscard]] std::optional<std::filesystem::path> find_kdtree_bundle_in_directory(
-    const std::filesystem::path& dir,
-    std::string_view bundle_filename = kDefaultKdTreeBundleFilename);
-
 /// Throws if @p tree point count differs from @p expected_vertex_count.
 void verify_kdtree_vertex_count(std::size_t expected_vertex_count, const KdTree3d& tree,
                                 const std::string& context);
 
-/// Load KD-trees for @p ply_files from @p kdtree_dir: merged bundle first, else `<stem>.kdtree`.
-/// @p expected_vertex_counts must match @p ply_files size; each loaded tree is checked against it.
+/// Load KD-trees for @p ply_files from @p kdtree_dir: split manifest bundles first, else `<stem>.kdtree`.
 [[nodiscard]] LoadKdTreesFromFolderResult load_kdtrees_from_folder(
     const std::filesystem::path& kdtree_dir,
     const std::vector<std::filesystem::path>& ply_files,
-    const std::vector<std::size_t>& expected_vertex_counts,
-    LoadKdTreesFromFolderOptions opts = {});
+    const std::vector<std::size_t>& expected_vertex_counts);
 
 }  // namespace tin_gen

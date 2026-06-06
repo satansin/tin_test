@@ -1,0 +1,16 @@
+# tin_test kd_merge_manifest v1
+source_dir	sample_pack
+max_indexes_per_bundle	5000
+mesh_count	10
+bundle_count	1
+# bundle_file	mesh_index	mesh_name	offset_bytes	size_bytes
+merged_000.tinkd	0	object_1	337	12000
+merged_000.tinkd	1	object_2	12337	12000
+merged_000.tinkd	2	object_3	24337	12000
+merged_000.tinkd	3	object_4	36337	12000
+merged_000.tinkd	4	object_5	48337	12000
+merged_000.tinkd	5	object_6	60337	12000
+merged_000.tinkd	6	object_7	72337	12000
+merged_000.tinkd	7	object_8	84337	12000
+merged_000.tinkd	8	object_9	96337	12000
+merged_000.tinkd	9	object_10	108337	12000

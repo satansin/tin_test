@@ -361,13 +361,14 @@ std::pair<std::size_t, std::size_t> pack_bundle_mesh_range(const DatasetMeshList
   return {mesh_index, last};
 }
 
-void report_folder_mesh_load_progress(const std::size_t loaded, const std::size_t total,
+void report_folder_mesh_load_progress(const std::size_t count, const std::size_t total,
                                       const double elapsed_seconds,
                                       const std::string_view label,
-                                      const std::string_view bundle) {
+                                      const std::string_view bundle,
+                                      const std::string_view verb) {
   std::cout << std::fixed << std::setprecision(6);
-  std::cout << label << ": loaded " << loaded << '/' << total << "  elapsed " << elapsed_seconds
-            << " s";
+  std::cout << label << ": " << verb << ' ' << count << '/' << total << "  elapsed "
+            << elapsed_seconds << " s";
   if (!bundle.empty()) {
     std::cout << "  bundle " << bundle;
   }
@@ -376,8 +377,10 @@ void report_folder_mesh_load_progress(const std::size_t loaded, const std::size_
 }
 
 DatasetMeshLoadProgress::DatasetMeshLoadProgress(const DatasetMeshListing& listing,
-                                                 const std::string_view label)
-    : listing_(listing), label_(label), total_(listing.paths.size()),
+                                                 const std::string_view label,
+                                                 const std::string_view progress_verb)
+    : listing_(listing), label_(label), progress_verb_(progress_verb),
+      total_(listing.paths.size()),
       start_(std::chrono::steady_clock::now()) {
   if (listing_.source == DatasetMeshSource::Pack) {
     std::cout << label_ << ": start reading " << total_ << " meshes from pack";
@@ -421,7 +424,7 @@ void DatasetMeshLoadProgress::on_bundle_loaded(const std::string_view bundle_fil
   std::cout << '\n';
 
   const auto [first_index, last_index] = pack_bundle_mesh_range(listing_, mesh_index);
-  std::cout << label_ << ": start extracting meshes from " << bundle_file << " (meshes "
+  std::cout << label_ << ": start processing meshes from " << bundle_file << " (meshes "
             << (first_index + 1);
   if (last_index != first_index) {
     std::cout << '-' << (last_index + 1);
@@ -451,7 +454,8 @@ void DatasetMeshLoadProgress::mark_loaded(const std::size_t loaded) {
     bundle = listing_.pack_bundles[loaded - 1];
   }
 
-  report_folder_mesh_load_progress(loaded, total_, elapsed_seconds_since(start_), label_, bundle);
+  report_folder_mesh_load_progress(loaded, total_, elapsed_seconds_since(start_), label_, bundle,
+                                   progress_verb_);
 }
 
 FolderMeshLoadProgress::FolderMeshLoadProgress(const std::size_t total,

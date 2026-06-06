@@ -8,7 +8,7 @@ set -euo pipefail
 #   ./scripts/build_kd_datasets.sh [small|full]
 #
 # Output (per dataset):
-#   ../tin_exp/datasets_norm_kd/<name>/combined.kdtree
+#   ../tin_exp/datasets_norm_kd/<name>/kd_merge_manifest.txt, merged_*.tinkd
 
 MODE="${1:-small}"
 
