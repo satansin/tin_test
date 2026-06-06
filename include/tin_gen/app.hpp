@@ -12,7 +12,7 @@ struct AppRequest {
   AppCommand command = AppCommand::Generate;
   GenerationConfig generate_config;
   NormalizeConfig normalize_config;
-  CompressPlyConfig compress_ply_config;
+  CompressConfig compress_config;
   IndexVerticesConfig index_vertices_config;
   DistanceConfig distance_config;
   PairwiseDistanceConfig pairwise_distance_config;

@@ -28,6 +28,8 @@ namespace {
 
 using Point = RsTree3d::Point;
 
+constexpr const char* kCommand = "pairwise_distance";
+
 enum class SpatialIndexKind { Rs, Kd };
 
 struct MeshIndex {
@@ -72,6 +74,15 @@ void verify_vertices_match_kdtree(const std::vector<Point>& vertices, const KdTr
   verify_vertices_match_points(vertices, tree.points(), context);
 }
 
+std::vector<std::size_t> expected_vertex_counts(const std::vector<MeshIndex>& meshes) {
+  std::vector<std::size_t> counts;
+  counts.reserve(meshes.size());
+  for (const auto& mesh : meshes) {
+    counts.push_back(mesh.vertices.size());
+  }
+  return counts;
+}
+
 void build_in_memory_rs_trees(std::vector<MeshIndex>& meshes) {
   for (auto& entry : meshes) {
     entry.rs_tree = RsTree3d(entry.vertices);
@@ -83,16 +94,10 @@ void assign_rs_trees_from_folder(std::vector<MeshIndex>& meshes,
                                 const std::vector<fs::path>& ply_files,
                                 const fs::path& rs_dir, LoadRsTreesFromFolderResult& loaded) {
   if (meshes.size() != ply_files.size()) {
-    throw std::logic_error("pairwise_distance: mesh/path count mismatch");
+    throw std::logic_error(std::string(kCommand) + ": mesh/path count mismatch");
   }
 
-  std::vector<std::size_t> expected_vertex_counts;
-  expected_vertex_counts.reserve(meshes.size());
-  for (const auto& mesh : meshes) {
-    expected_vertex_counts.push_back(mesh.vertices.size());
-  }
-
-  loaded = load_rs_trees_from_folder(rs_dir, ply_files, expected_vertex_counts);
+  loaded = load_rs_trees_from_folder(rs_dir, ply_files, expected_vertex_counts(meshes));
 
   for (std::size_t i = 0; i < meshes.size(); ++i) {
     const std::string stem = ply_files[i].stem().string();
@@ -114,16 +119,10 @@ void assign_kdtrees_from_folder(std::vector<MeshIndex>& meshes,
                                 const std::vector<fs::path>& ply_files,
                                 const fs::path& kd_dir, LoadKdTreesFromFolderResult& loaded) {
   if (meshes.size() != ply_files.size()) {
-    throw std::logic_error("pairwise_distance: mesh/path count mismatch");
+    throw std::logic_error(std::string(kCommand) + ": mesh/path count mismatch");
   }
 
-  std::vector<std::size_t> expected_vertex_counts;
-  expected_vertex_counts.reserve(meshes.size());
-  for (const auto& mesh : meshes) {
-    expected_vertex_counts.push_back(mesh.vertices.size());
-  }
-
-  loaded = load_kdtrees_from_folder(kd_dir, ply_files, expected_vertex_counts);
+  loaded = load_kdtrees_from_folder(kd_dir, ply_files, expected_vertex_counts(meshes));
 
   for (std::size_t i = 0; i < meshes.size(); ++i) {
     const std::string stem = ply_files[i].stem().string();
@@ -291,41 +290,29 @@ int run_pairwise_distance(const PairwiseDistanceConfig& config) {
   }
 
   if (!fs::exists(input_dir) || !fs::is_directory(input_dir)) {
-    throw std::runtime_error("pairwise_distance: input_dir is not a directory: " +
+    throw std::runtime_error(std::string(kCommand) + ": input_dir is not a directory: " +
                              input_dir.string());
   }
 
-  ListMeshFilesOptions list_opts;
-  list_opts.max_objects = config.max_objects;
-  list_opts.extension = mesh_format_extension(MeshFormat::Ply);
+  CpuTimer cpu_read;
+  WallTimer wall_read;
+  cpu_read.start();
+  wall_read.start();
+  const LoadedDatasetMeshes loaded_meshes = load_all_dataset_meshes(
+      input_dir, ply_list_options(config.max_objects), kCommand, std::string(kCommand) + " mesh files");
+  cpu_read.stop();
+  wall_read.stop();
 
-  DatasetMeshListing listing;
-  try {
-    listing = list_dataset_meshes(input_dir, list_opts);
-  } catch (const std::runtime_error& error) {
-    throw std::runtime_error(std::string("pairwise_distance: ") + error.what());
-  }
+  const DatasetMeshListing& listing = loaded_meshes.listing;
   const std::vector<fs::path>& ply_files = listing.paths;
 
-  FolderMeshLoadProgress load_progress(ply_files.size(), "pairwise_distance mesh files");
-
   std::vector<MeshIndex> meshes;
-  meshes.reserve(ply_files.size());
-  for (std::size_t i = 0; i < ply_files.size(); ++i) {
-    const TinMesh mesh = read_dataset_mesh(listing, i);
-    if (mesh.vertices.empty()) {
-      throw std::runtime_error("pairwise_distance: mesh has no vertices: " +
-                               ply_files[i].string());
-    }
-
+  meshes.reserve(loaded_meshes.meshes.size());
+  for (std::size_t i = 0; i < loaded_meshes.meshes.size(); ++i) {
     MeshIndex entry;
-    entry.name = ply_files[i].filename().string();
-    entry.vertices.reserve(mesh.vertices.size());
-    for (const auto& v : mesh.vertices) {
-      entry.vertices.push_back(v);
-    }
+    entry.name = ply_files[i].stem().string();
+    entry.vertices = tin_mesh_vertices(loaded_meshes.meshes[i]);
     meshes.push_back(std::move(entry));
-    load_progress.mark_loaded(i + 1);
   }
 
   SpatialIndexKind index_kind = SpatialIndexKind::Rs;
@@ -381,19 +368,15 @@ int run_pairwise_distance(const PairwiseDistanceConfig& config) {
                                    index_bundle);
       break;
     default:
-      throw std::logic_error("Unhandled distance algorithm.");
+      throw std::logic_error(std::string(kCommand) + ": unhandled algorithm.");
   }
 
   cpu_matrix.stop();
   wall_matrix.stop();
 
-  std::cout << "pairwise_distance\n"
+  std::cout << kCommand << '\n'
             << "  input: " << input_dir.string() << " (" << meshes.size() << " meshes)\n";
-  if (listing.source == DatasetMeshSource::Pack) {
-    std::cout << "  mesh_source: pack (" << listing.pack_manifest.string() << ")\n";
-  } else {
-    std::cout << "  mesh_source: per-file\n";
-  }
+  print_dataset_mesh_source(std::cout, listing);
   std::cout << "  algorithm: " << distance_algorithm_name(config.algorithm) << '\n';
   if (kd_dir) {
     std::cout << "  kd_dir: " << kd_dir->string() << '\n';
@@ -415,7 +398,8 @@ int run_pairwise_distance(const PairwiseDistanceConfig& config) {
     std::cout << "  rs: in-memory (built before distance matrix)\n";
   }
   std::cout << "  output: " << output_path.string() << '\n';
-  print_cpu_wall_timing("pairwise_distance matrix", cpu_matrix, wall_matrix);
+  print_cpu_wall_timing(std::string(kCommand) + " read mesh files", cpu_read, wall_read);
+  print_cpu_wall_timing(std::string(kCommand) + " matrix", cpu_matrix, wall_matrix);
 
   return EXIT_SUCCESS;
 }

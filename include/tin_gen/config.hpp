@@ -51,7 +51,7 @@ struct IndexVerticesConfig {
 /// Parse options for the normalize command. Returns nullopt on -h/--help.
 [[nodiscard]] std::optional<NormalizeConfig> parse_normalize_config(int argc, char* argv[]);
 
-struct CompressPlyConfig {
+struct CompressConfig {
   std::string input_dir;
   std::string output_dir = "sample_pack";
   std::size_t max_meshes_per_bundle = kDefaultMaxMeshesPerPlyBundle;
@@ -59,7 +59,7 @@ struct CompressPlyConfig {
 };
 
 /// Parse options for the compress command. Returns nullopt on -h/--help.
-[[nodiscard]] std::optional<CompressPlyConfig> parse_compress_ply_config(int argc, char* argv[]);
+[[nodiscard]] std::optional<CompressConfig> parse_compress_config(int argc, char* argv[]);
 
 struct DistanceConfig {
   std::string path_a;

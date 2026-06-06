@@ -55,6 +55,16 @@ bool is_all_digits(const std::string_view text) {
   return true;
 }
 
+bool path_has_extension(const fs::path& path, const std::string& extension) {
+  const std::string file_ext = to_lower(path.extension().string());
+  return file_ext == extension;
+}
+
+double elapsed_seconds_since(const std::chrono::steady_clock::time_point start) {
+  const std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+  return std::chrono::duration<double>(now - start).count();
+}
+
 }  // namespace
 
 MeshFormat parse_mesh_format(const std::string_view value) {
@@ -132,15 +142,6 @@ std::string normalize_mesh_extension(const std::string_view ext) {
   return normalized;
 }
 
-namespace {
-
-bool path_has_extension(const fs::path& path, const std::string& extension) {
-  const std::string file_ext = to_lower(path.extension().string());
-  return file_ext == extension;
-}
-
-}  // namespace
-
 std::vector<fs::path> list_mesh_files_in_directory(const fs::path& input_dir,
                                                    ListMeshFilesOptions opts) {
   const std::string extension = normalize_mesh_extension(opts.extension);
@@ -216,14 +217,64 @@ TinMesh read_dataset_mesh(const DatasetMeshListing& listing, const std::size_t i
   return read_ply(listing.paths[index].string());
 }
 
-namespace {
-
-double elapsed_seconds_since(const std::chrono::steady_clock::time_point start) {
-  const std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
-  return std::chrono::duration<double>(now - start).count();
+std::vector<MeshVertex> tin_mesh_vertices(const TinMesh& mesh) {
+  std::vector<MeshVertex> vertices;
+  vertices.reserve(mesh.vertices.size());
+  for (const auto& vertex : mesh.vertices) {
+    vertices.push_back(vertex);
+  }
+  return vertices;
 }
 
-}  // namespace
+ListMeshFilesOptions ply_list_options(const std::size_t max_objects) {
+  ListMeshFilesOptions opts;
+  opts.max_objects = max_objects;
+  opts.extension = mesh_format_extension(MeshFormat::Ply);
+  return opts;
+}
+
+DatasetMeshListing list_dataset_meshes_for_command(const fs::path& input_dir,
+                                                   ListMeshFilesOptions opts,
+                                                   const std::string_view command) {
+  try {
+    return list_dataset_meshes(input_dir, opts);
+  } catch (const std::runtime_error& error) {
+    throw std::runtime_error(std::string(command) + ": " + error.what());
+  }
+}
+
+void require_non_empty_mesh(const TinMesh& mesh, const std::string_view command,
+                            const fs::path& mesh_path) {
+  if (mesh.vertices.empty()) {
+    throw std::runtime_error(std::string(command) + ": mesh has no vertices: " + mesh_path.string());
+  }
+}
+
+void print_dataset_mesh_source(std::ostream& out, const DatasetMeshListing& listing) {
+  if (listing.source == DatasetMeshSource::Pack) {
+    out << "  mesh_source: pack (" << listing.pack_manifest.string() << ")\n";
+  } else {
+    out << "  mesh_source: per-file\n";
+  }
+}
+
+LoadedDatasetMeshes load_all_dataset_meshes(const fs::path& input_dir, ListMeshFilesOptions opts,
+                                             const std::string_view command,
+                                             const std::string_view progress_label) {
+  LoadedDatasetMeshes loaded;
+  loaded.listing = list_dataset_meshes_for_command(input_dir, opts, command);
+  loaded.meshes.reserve(loaded.listing.paths.size());
+
+  FolderMeshLoadProgress progress(loaded.listing.paths.size(), progress_label);
+  for (std::size_t i = 0; i < loaded.listing.paths.size(); ++i) {
+    TinMesh mesh = read_dataset_mesh(loaded.listing, i);
+    require_non_empty_mesh(mesh, command, loaded.listing.paths[i]);
+    loaded.meshes.push_back(std::move(mesh));
+    progress.mark_loaded(i + 1);
+  }
+
+  return loaded;
+}
 
 std::size_t current_process_resident_bytes() {
 #if defined(__APPLE__)
@@ -274,8 +325,7 @@ void FolderMeshLoadProgress::mark_loaded(const std::size_t loaded) {
   if (total_ == 0 || loaded == 0 || loaded > total_) {
     return;
   }
-  const bool at_interval =
-      loaded % kFolderMeshLoadProgressInterval == 0;
+  const bool at_interval = loaded % kFolderMeshLoadProgressInterval == 0;
   const bool at_end = loaded == total_;
   if (!at_interval && !at_end) {
     return;

@@ -19,6 +19,8 @@ inline constexpr const char* kDatasetsNormDirectoryName = "datasets_norm";
 inline constexpr const char* kDatasetsNormPackDirectoryName = "datasets_norm_pack";
 inline constexpr std::size_t kDefaultMaxMeshesPerPlyBundle = 5000;
 
+// --- Manifest records ---
+
 struct PlyMergeEntry {
   std::string bundle_file;
   std::size_t mesh_index = 0;
@@ -47,6 +49,8 @@ struct PlyMergeResult {
   std::filesystem::path manifest_path;
 };
 
+// --- Merge / read API ---
+
 /// Parse a manifest written by write_ply_merge().
 [[nodiscard]] PlyMergeManifest load_ply_merge_manifest(const std::filesystem::path& manifest_path);
 
@@ -63,6 +67,8 @@ struct PlyMergeResult {
 /// Read one mesh by 0-based index from the manifest order.
 [[nodiscard]] TinMesh read_ply_from_merge_by_index(const std::filesystem::path& manifest_path,
                                                    std::size_t mesh_index);
+
+// --- Pack discovery ---
 
 /// If @p input_dir has pack metadata, returns the manifest path; otherwise nullopt.
 /// Checks, in order: `pack.setting`, manifest in @p input_dir, parallel `datasets_norm_pack/<name>/`.

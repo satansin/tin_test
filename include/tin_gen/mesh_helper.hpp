@@ -1,8 +1,10 @@
 #pragma once
 
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
+#include <iosfwd>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -66,6 +68,34 @@ struct DatasetMeshListing {
 
 /// Read mesh @p index from a listing returned by list_dataset_meshes().
 [[nodiscard]] TinMesh read_dataset_mesh(const DatasetMeshListing& listing, std::size_t index);
+
+// --- Dataset mesh loading helpers (kd / rs / pairwise_distance) ---
+
+using MeshVertex = std::array<double, 3>;
+
+[[nodiscard]] std::vector<MeshVertex> tin_mesh_vertices(const TinMesh& mesh);
+
+[[nodiscard]] ListMeshFilesOptions ply_list_options(std::size_t max_objects = 0);
+
+/// Like list_dataset_meshes(), but rethrows with a @p command prefix.
+[[nodiscard]] DatasetMeshListing list_dataset_meshes_for_command(
+    const std::filesystem::path& input_dir, ListMeshFilesOptions opts,
+    std::string_view command);
+
+void require_non_empty_mesh(const TinMesh& mesh, std::string_view command,
+                            const std::filesystem::path& mesh_path);
+
+void print_dataset_mesh_source(std::ostream& out, const DatasetMeshListing& listing);
+
+struct LoadedDatasetMeshes {
+  DatasetMeshListing listing;
+  std::vector<TinMesh> meshes;
+};
+
+/// List and read every mesh in @p input_dir (pack or per-file) with progress reporting.
+[[nodiscard]] LoadedDatasetMeshes load_all_dataset_meshes(
+    const std::filesystem::path& input_dir, ListMeshFilesOptions opts,
+    std::string_view command, std::string_view progress_label);
 
 // --- Folder mesh load progress (normalize / kd / rs / pairwise_distance) ---
 

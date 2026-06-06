@@ -3,6 +3,7 @@
 #include "tin_gen/cpu_timer.hpp"
 #include "tin_gen/distance_algorithm.hpp"
 #include "tin_gen/kd_tree.hpp"
+#include "tin_gen/mesh_helper.hpp"
 #include "tin_gen/rs_tree.hpp"
 #include "tin_gen/tin_mesh.hpp"
 #include "tin_gen/vertex_distance.hpp"
@@ -18,15 +19,6 @@ namespace {
 
 using Point = KdTree3d::Point;
 
-std::vector<Point> mesh_vertices(const TinMesh& mesh) {
-  std::vector<Point> points;
-  points.reserve(mesh.vertices.size());
-  for (const auto& v : mesh.vertices) {
-    points.push_back(v);
-  }
-  return points;
-}
-
 void print_distance_result(const std::string_view index_name, const VertexDistanceResult& result) {
   std::cout << "  [" << index_name << "] d_A: " << result.d_a << "  d_B: " << result.d_b
             << "  distance: " << result.distance << '\n';
@@ -36,8 +28,8 @@ int run_distance_vertex_compare(const DistanceConfig& config) {
   const TinMesh mesh_a = read_ply(config.path_a);
   const TinMesh mesh_b = read_ply(config.path_b);
 
-  const std::vector<Point> vertices_a = mesh_vertices(mesh_a);
-  const std::vector<Point> vertices_b = mesh_vertices(mesh_b);
+  const std::vector<Point> vertices_a = tin_mesh_vertices(mesh_a);
+  const std::vector<Point> vertices_b = tin_mesh_vertices(mesh_b);
 
   std::cout << "distance compare (algorithm=vertex)\n"
             << "  A: " << config.path_a << " (" << vertices_a.size() << " vertices)\n"
@@ -102,8 +94,8 @@ int run_distance_vertex(const DistanceConfig& config) {
   const TinMesh mesh_a = read_ply(config.path_a);
   const TinMesh mesh_b = read_ply(config.path_b);
 
-  const std::vector<Point> vertices_a = mesh_vertices(mesh_a);
-  const std::vector<Point> vertices_b = mesh_vertices(mesh_b);
+  const std::vector<Point> vertices_a = tin_mesh_vertices(mesh_a);
+  const std::vector<Point> vertices_b = tin_mesh_vertices(mesh_b);
 
   CpuTimer cpu_build;
   WallTimer wall_build;
@@ -145,7 +137,7 @@ int run_distance(const DistanceConfig& config) {
       }
       return run_distance_vertex(config);
   }
-  throw std::logic_error("Unhandled distance algorithm.");
+  throw std::logic_error("distance: unhandled algorithm.");
 }
 
 }  // namespace tin_gen

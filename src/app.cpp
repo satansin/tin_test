@@ -5,7 +5,7 @@
 #include "tin_gen/commands/index_vertices.hpp"
 #include "tin_gen/commands/pairwise_distance.hpp"
 #include "tin_gen/commands/normalize.hpp"
-#include "tin_gen/commands/compress_ply.hpp"
+#include "tin_gen/commands/compress.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -169,12 +169,12 @@ std::optional<AppRequest> parse_app_request(const int argc, char* argv[]) {
     }
     request.normalize_config = *config;
   } else if (request.command == AppCommand::Compress) {
-    const auto config = parse_compress_ply_config(argc - option_start, argv + option_start);
+    const auto config = parse_compress_config(argc - option_start, argv + option_start);
     if (!config) {
       print_usage(argv[0]);
       return std::nullopt;
     }
-    request.compress_ply_config = *config;
+    request.compress_config = *config;
   } else if (request.command == AppCommand::Kd) {
     const auto config =
         parse_index_vertices_config(argc - option_start, argv + option_start, VertexIndexKind::Kd);
@@ -217,7 +217,7 @@ int run_app(const AppRequest& request) {
     case AppCommand::Normalize:
       return run_normalize(request.normalize_config);
     case AppCommand::Compress:
-      return run_compress_ply(request.compress_ply_config);
+      return run_compress(request.compress_config);
     case AppCommand::Kd:
     case AppCommand::Rs:
       return run_index_vertices(request.index_vertices_config);

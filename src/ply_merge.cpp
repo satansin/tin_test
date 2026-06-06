@@ -110,6 +110,83 @@ void copy_ply_into_bundle(std::ofstream& out, const fs::path& ply_path) {
   }
 }
 
+std::string trim_line(std::string s) {
+  auto is_space = [](unsigned char c) { return std::isspace(c) != 0; };
+  while (!s.empty() && is_space(static_cast<unsigned char>(s.front()))) {
+    s.erase(s.begin());
+  }
+  while (!s.empty() && is_space(static_cast<unsigned char>(s.back()))) {
+    s.pop_back();
+  }
+  return s;
+}
+
+std::optional<fs::path> manifest_path_if_exists(const fs::path& pack_dir) {
+  const fs::path manifest = pack_dir / kPlyMergeManifestFilename;
+  std::error_code ec;
+  if (fs::is_regular_file(manifest, ec)) {
+    return manifest;
+  }
+  return std::nullopt;
+}
+
+std::optional<fs::path> manifest_from_pack_setting(const fs::path& input_dir) {
+  const fs::path setting_path = input_dir / kPackSettingFilename;
+  std::error_code ec;
+  if (!fs::is_regular_file(setting_path, ec)) {
+    return std::nullopt;
+  }
+
+  std::ifstream in(setting_path);
+  if (!in) {
+    return std::nullopt;
+  }
+
+  std::string line;
+  while (std::getline(in, line)) {
+    line = trim_line(std::move(line));
+    if (line.empty() || line[0] == '#') {
+      continue;
+    }
+
+    fs::path pack_dir(line);
+    if (pack_dir.is_relative()) {
+      pack_dir = input_dir / pack_dir;
+    }
+    pack_dir = fs::weakly_canonical(pack_dir, ec);
+    if (ec) {
+      pack_dir = (input_dir / line).lexically_normal();
+    }
+    return manifest_path_if_exists(pack_dir);
+  }
+
+  return std::nullopt;
+}
+
+std::optional<fs::path> manifest_from_norm_pack_sibling(const fs::path& input_dir) {
+  std::vector<fs::path> parts;
+  parts.reserve(static_cast<std::size_t>(std::distance(input_dir.begin(), input_dir.end())));
+  for (const auto& part : input_dir) {
+    parts.push_back(part);
+  }
+
+  for (std::size_t i = 0; i < parts.size(); ++i) {
+    if (parts[i] != kDatasetsNormDirectoryName) {
+      continue;
+    }
+    parts[i] = kDatasetsNormPackDirectoryName;
+    fs::path candidate;
+    for (const auto& part : parts) {
+      candidate /= part;
+    }
+    if (const auto manifest = manifest_path_if_exists(candidate)) {
+      return manifest;
+    }
+  }
+
+  return std::nullopt;
+}
+
 }  // namespace
 
 PlyMergeManifest load_ply_merge_manifest(const fs::path& manifest_path) {
@@ -197,10 +274,8 @@ PlyMergeResult write_ply_merge(const fs::path& source_dir, const fs::path& outpu
 
   fs::create_directories(output_dir);
 
-  ListMeshFilesOptions list_opts;
-  list_opts.max_objects = opts.max_objects;
-  list_opts.extension = mesh_format_extension(MeshFormat::Ply);
-  const std::vector<fs::path> ply_files = list_mesh_files_in_directory(source_dir, list_opts);
+  const std::vector<fs::path> ply_files =
+      list_mesh_files_in_directory(source_dir, ply_list_options(opts.max_objects));
   if (ply_files.empty()) {
     throw std::runtime_error("write_ply_merge: no PLY files in " + source_dir.string());
   }
@@ -297,83 +372,6 @@ TinMesh read_ply_from_merge_by_index(const fs::path& manifest_path, const std::s
                              std::to_string(mesh_index));
   }
   return read_ply_from_manifest_entry(manifest, *entry);
-}
-
-std::string trim_line(std::string s) {
-  auto is_space = [](unsigned char c) { return std::isspace(c) != 0; };
-  while (!s.empty() && is_space(static_cast<unsigned char>(s.front()))) {
-    s.erase(s.begin());
-  }
-  while (!s.empty() && is_space(static_cast<unsigned char>(s.back()))) {
-    s.pop_back();
-  }
-  return s;
-}
-
-std::optional<fs::path> manifest_path_if_exists(const fs::path& pack_dir) {
-  const fs::path manifest = pack_dir / kPlyMergeManifestFilename;
-  std::error_code ec;
-  if (fs::is_regular_file(manifest, ec)) {
-    return manifest;
-  }
-  return std::nullopt;
-}
-
-std::optional<fs::path> manifest_from_pack_setting(const fs::path& input_dir) {
-  const fs::path setting_path = input_dir / kPackSettingFilename;
-  std::error_code ec;
-  if (!fs::is_regular_file(setting_path, ec)) {
-    return std::nullopt;
-  }
-
-  std::ifstream in(setting_path);
-  if (!in) {
-    return std::nullopt;
-  }
-
-  std::string line;
-  while (std::getline(in, line)) {
-    line = trim_line(std::move(line));
-    if (line.empty() || line[0] == '#') {
-      continue;
-    }
-
-    fs::path pack_dir(line);
-    if (pack_dir.is_relative()) {
-      pack_dir = input_dir / pack_dir;
-    }
-    pack_dir = fs::weakly_canonical(pack_dir, ec);
-    if (ec) {
-      pack_dir = (input_dir / line).lexically_normal();
-    }
-    return manifest_path_if_exists(pack_dir);
-  }
-
-  return std::nullopt;
-}
-
-std::optional<fs::path> manifest_from_norm_pack_sibling(const fs::path& input_dir) {
-  std::vector<fs::path> parts;
-  parts.reserve(static_cast<std::size_t>(std::distance(input_dir.begin(), input_dir.end())));
-  for (const auto& part : input_dir) {
-    parts.push_back(part);
-  }
-
-  for (std::size_t i = 0; i < parts.size(); ++i) {
-    if (parts[i] != kDatasetsNormDirectoryName) {
-      continue;
-    }
-    parts[i] = kDatasetsNormPackDirectoryName;
-    fs::path candidate;
-    for (const auto& part : parts) {
-      candidate /= part;
-    }
-    if (const auto manifest = manifest_path_if_exists(candidate)) {
-      return manifest;
-    }
-  }
-
-  return std::nullopt;
 }
 
 std::optional<fs::path> find_pack_manifest_for_dataset(const fs::path& input_dir) {

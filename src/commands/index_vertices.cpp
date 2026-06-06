@@ -22,16 +22,15 @@ using Point = KdTree3d::Point;
 
 struct IndexVerticesLabels {
   const char* command;
-  const char* file_ext;
   const char* per_file_label;
   const char* build_label;
 };
 
 [[nodiscard]] IndexVerticesLabels labels_for(const VertexIndexKind kind) {
   if (kind == VertexIndexKind::Kd) {
-    return {"kd", ".kdtree", "per-mesh .kdtree", "kd-trees"};
+    return {"kd", "per-mesh .kdtree", "kd-trees"};
   }
-  return {"rs", ".rstree", "per-mesh .rstree", "r*-trees"};
+  return {"rs", "per-mesh .rstree", "r*-trees"};
 }
 
 struct MeshPoints {
@@ -39,37 +38,29 @@ struct MeshPoints {
   std::vector<Point> points;
 };
 
-std::vector<Point> mesh_to_points(const TinMesh& mesh) {
-  std::vector<Point> points;
-  points.reserve(mesh.vertices.size());
-  for (const auto& v : mesh.vertices) {
-    points.push_back(v);
-  }
-  return points;
-}
+void save_vertex_indexes(const IndexVerticesConfig& config, const fs::path& output_dir,
+                         const std::vector<MeshPoints>& meshes) {
+  if (config.kind == VertexIndexKind::Kd) {
+    std::vector<KdTreeBundleEntry> built;
+    built.reserve(meshes.size());
+    for (const auto& mesh : meshes) {
+      KdTreeBundleEntry entry;
+      entry.name = mesh.name;
+      entry.tree = KdTree3d(mesh.points);
+      built.push_back(std::move(entry));
+    }
 
-void save_kd_indexes(const IndexVerticesConfig& config, const fs::path& output_dir,
-                     const std::vector<MeshPoints>& meshes) {
-  std::vector<KdTreeBundleEntry> built;
-  built.reserve(meshes.size());
-  for (const auto& mesh : meshes) {
-    KdTreeBundleEntry entry;
-    entry.name = mesh.name;
-    entry.tree = KdTree3d(mesh.points);
-    built.push_back(std::move(entry));
-  }
+    if (config.combined_output) {
+      save_kd_tree_bundle((output_dir / config.combined_file).string(), built);
+      return;
+    }
 
-  if (config.combined_output) {
-    save_kd_tree_bundle((output_dir / config.combined_file).string(), built);
-  } else {
     for (const auto& entry : built) {
       entry.tree.save((output_dir / (entry.name + ".kdtree")).string());
     }
+    return;
   }
-}
 
-void save_rs_indexes(const IndexVerticesConfig& config, const fs::path& output_dir,
-                     const std::vector<MeshPoints>& meshes) {
   std::vector<RsTreeBundleEntry> built;
   built.reserve(meshes.size());
   for (const auto& mesh : meshes) {
@@ -81,10 +72,11 @@ void save_rs_indexes(const IndexVerticesConfig& config, const fs::path& output_d
 
   if (config.combined_output) {
     save_rs_tree_bundle((output_dir / config.combined_file).string(), built);
-  } else {
-    for (const auto& entry : built) {
-      entry.tree.save((output_dir / (entry.name + ".rstree")).string());
-    }
+    return;
+  }
+
+  for (const auto& entry : built) {
+    entry.tree.save((output_dir / (entry.name + ".rstree")).string());
   }
 }
 
@@ -101,62 +93,37 @@ int run_index_vertices(const IndexVerticesConfig& config) {
   }
   fs::create_directories(output_dir);
 
-  ListMeshFilesOptions list_opts;
-  list_opts.max_objects = config.max_objects;
-  list_opts.extension = mesh_format_extension(MeshFormat::Ply);
-
-  DatasetMeshListing listing;
-  try {
-    listing = list_dataset_meshes(input_dir, list_opts);
-  } catch (const std::runtime_error& error) {
-    throw std::runtime_error(std::string(labels.command) + ": " + error.what());
-  }
-  const std::vector<fs::path>& ply_files = listing.paths;
-
-  std::vector<MeshPoints> meshes;
-  meshes.reserve(ply_files.size());
-
   const std::string load_label = std::string(labels.command) + " mesh files";
-  FolderMeshLoadProgress load_progress(ply_files.size(), load_label);
 
   CpuTimer cpu_read;
   WallTimer wall_read;
   cpu_read.start();
   wall_read.start();
-  for (std::size_t i = 0; i < ply_files.size(); ++i) {
-    const TinMesh mesh = read_dataset_mesh(listing, i);
-    if (mesh.vertices.empty()) {
-      throw std::runtime_error(std::string(labels.command) + ": mesh has no vertices: " +
-                               ply_files[i].string());
-    }
-    MeshPoints entry;
-    entry.name = ply_files[i].stem().string();
-    entry.points = mesh_to_points(mesh);
-    meshes.push_back(std::move(entry));
-    load_progress.mark_loaded(i + 1);
-  }
+  const LoadedDatasetMeshes loaded = load_all_dataset_meshes(
+      input_dir, ply_list_options(config.max_objects), labels.command, load_label);
   cpu_read.stop();
   wall_read.stop();
+
+  std::vector<MeshPoints> meshes;
+  meshes.reserve(loaded.meshes.size());
+  for (std::size_t i = 0; i < loaded.meshes.size(); ++i) {
+    MeshPoints entry;
+    entry.name = loaded.listing.paths[i].stem().string();
+    entry.points = tin_mesh_vertices(loaded.meshes[i]);
+    meshes.push_back(std::move(entry));
+  }
 
   CpuTimer cpu_build;
   WallTimer wall_build;
   cpu_build.start();
   wall_build.start();
-  if (config.kind == VertexIndexKind::Kd) {
-    save_kd_indexes(config, output_dir, meshes);
-  } else {
-    save_rs_indexes(config, output_dir, meshes);
-  }
+  save_vertex_indexes(config, output_dir, meshes);
   cpu_build.stop();
   wall_build.stop();
 
   std::cout << labels.command << '\n'
             << "  input: " << input_dir.string() << " (" << meshes.size() << " meshes)\n";
-  if (listing.source == DatasetMeshSource::Pack) {
-    std::cout << "  mesh_source: pack (" << listing.pack_manifest.string() << ")\n";
-  } else {
-    std::cout << "  mesh_source: per-file\n";
-  }
+  print_dataset_mesh_source(std::cout, loaded.listing);
   std::cout << "  output: " << output_dir.string();
   if (config.combined_output) {
     std::cout << " (" << config.combined_file << ")\n";

@@ -1,4 +1,4 @@
-#include "tin_gen/commands/compress_ply.hpp"
+#include "tin_gen/commands/compress.hpp"
 
 #include "tin_gen/cpu_timer.hpp"
 #include "tin_gen/mesh_helper.hpp"
@@ -12,7 +12,7 @@
 namespace tin_gen {
 namespace fs = std::filesystem;
 
-int run_compress_ply(const CompressPlyConfig& config) {
+int run_compress(const CompressConfig& config) {
   const fs::path input_dir(config.input_dir);
   const fs::path output_dir(config.output_dir);
 
