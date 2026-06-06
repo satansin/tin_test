@@ -345,6 +345,20 @@ void append_resident_memory(std::ostream& out) {
   }
 }
 
+std::pair<std::size_t, std::size_t> pack_bundle_mesh_range(const DatasetMeshListing& listing,
+                                                           const std::size_t mesh_index) {
+  if (mesh_index >= listing.pack_bundles.size()) {
+    return {mesh_index, mesh_index};
+  }
+
+  const std::string& bundle = listing.pack_bundles[mesh_index];
+  std::size_t last = mesh_index;
+  while (last + 1 < listing.pack_bundles.size() && listing.pack_bundles[last + 1] == bundle) {
+    ++last;
+  }
+  return {mesh_index, last};
+}
+
 }  // namespace
 
 void report_folder_mesh_load_progress(const std::size_t loaded, const std::size_t total,
@@ -401,11 +415,18 @@ void DatasetMeshLoadProgress::on_bundle_loaded(const std::string_view bundle_fil
   } else {
     std::cout << std::setprecision(2) << (bytes / 1e6) << " MB";
   }
-  std::cout << std::setprecision(6) << ")  mesh " << (mesh_index + 1) << '/' << total_
-            << "  bundle read " << read_wall_seconds << " s  CPU " << read_cpu_seconds
-            << " s  elapsed " << elapsed << " s";
+  std::cout << std::setprecision(6) << ")  bundle read " << read_wall_seconds << " s  CPU "
+            << read_cpu_seconds << " s  elapsed " << elapsed << " s";
   append_resident_memory(std::cout);
-  std::cout << '\n' << std::flush;
+  std::cout << '\n';
+
+  const auto [first_index, last_index] = pack_bundle_mesh_range(listing_, mesh_index);
+  std::cout << label_ << ": start extracting meshes from " << bundle_file << " (meshes "
+            << (first_index + 1);
+  if (last_index != first_index) {
+    std::cout << '-' << (last_index + 1);
+  }
+  std::cout << '/' << total_ << ")\n" << std::flush;
 }
 
 void DatasetMeshLoadProgress::mark_loaded(const std::size_t loaded) {

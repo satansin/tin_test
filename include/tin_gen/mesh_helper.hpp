@@ -121,7 +121,7 @@ class DatasetMeshLoadProgress {
  public:
   DatasetMeshLoadProgress(const DatasetMeshListing& listing, std::string_view label);
 
-  /// Called after a bundle file has been read from disk into memory.
+  /// Called after a bundle file has been read from disk; prints load timing and extraction start.
   void on_bundle_loaded(std::string_view bundle_file, std::size_t size_bytes,
                         double read_wall_seconds, double read_cpu_seconds, std::size_t mesh_index);
 
