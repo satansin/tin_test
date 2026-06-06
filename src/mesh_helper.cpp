@@ -345,6 +345,8 @@ void append_resident_memory(std::ostream& out) {
   }
 }
 
+}  // namespace
+
 std::pair<std::size_t, std::size_t> pack_bundle_mesh_range(const DatasetMeshListing& listing,
                                                            const std::size_t mesh_index) {
   if (mesh_index >= listing.pack_bundles.size()) {
@@ -358,8 +360,6 @@ std::pair<std::size_t, std::size_t> pack_bundle_mesh_range(const DatasetMeshList
   }
   return {mesh_index, last};
 }
-
-}  // namespace
 
 void report_folder_mesh_load_progress(const std::size_t loaded, const std::size_t total,
                                       const double elapsed_seconds,
@@ -427,6 +427,12 @@ void DatasetMeshLoadProgress::on_bundle_loaded(const std::string_view bundle_fil
     std::cout << '-' << (last_index + 1);
   }
   std::cout << '/' << total_ << ")\n" << std::flush;
+}
+
+void DatasetMeshLoadProgress::on_bundle_extracted(const std::string_view bundle_file,
+                                                  const std::size_t last_mesh_index) {
+  std::cout << label_ << ": finished bundle " << bundle_file << ", released bundle memory (meshes "
+            << (last_mesh_index + 1) << '/' << total_ << ")\n" << std::flush;
 }
 
 void DatasetMeshLoadProgress::mark_loaded(const std::size_t loaded) {

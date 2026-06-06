@@ -93,6 +93,10 @@ void require_non_empty_mesh(const TinMesh& mesh, std::string_view command,
 
 void print_dataset_mesh_source(std::ostream& out, const DatasetMeshListing& listing);
 
+/// Inclusive [first, last] mesh indices (0-based) sharing the same pack bundle file.
+[[nodiscard]] std::pair<std::size_t, std::size_t> pack_bundle_mesh_range(
+    const DatasetMeshListing& listing, std::size_t mesh_index);
+
 struct LoadedDatasetMeshes {
   DatasetMeshListing listing;
   std::vector<TinMesh> meshes;
@@ -127,6 +131,9 @@ class DatasetMeshLoadProgress {
 
   /// @p loaded is the number of meshes read so far (1-based, up to total).
   void mark_loaded(std::size_t loaded);
+
+  /// Called after the last mesh in a pack bundle has been extracted and the bundle released.
+  void on_bundle_extracted(std::string_view bundle_file, std::size_t last_mesh_index);
 
  private:
   const DatasetMeshListing& listing_;

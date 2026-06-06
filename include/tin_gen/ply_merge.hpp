@@ -100,6 +100,9 @@ class PlyMergeDatasetReader {
   /// Read mesh @p index using the in-memory bundle buffer for its bundle file.
   [[nodiscard]] TinMesh read_mesh(std::size_t index, PlyReadContent content = PlyReadContent::Full);
 
+  /// Drop the in-memory bundle buffer after all meshes in the bundle are processed.
+  void release_loaded_bundle();
+
  private:
   void ensure_bundle_loaded(const std::string& bundle_file, std::size_t mesh_index);
   [[nodiscard]] TinMesh read_mesh_from_entry(const PlyMergeEntry& entry, std::size_t mesh_index,

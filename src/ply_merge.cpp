@@ -184,6 +184,12 @@ TinMesh PlyMergeDatasetReader::read_mesh(const std::size_t index, const PlyReadC
   return read_mesh_from_entry(entries_[index], index, content);
 }
 
+void PlyMergeDatasetReader::release_loaded_bundle() {
+  loaded_bundle_file_.clear();
+  loaded_bundle_bytes_.clear();
+  loaded_bundle_bytes_.shrink_to_fit();
+}
+
 namespace {
 
 std::uint64_t file_size_bytes(const fs::path& path) {
