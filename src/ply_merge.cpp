@@ -113,7 +113,31 @@ DatasetMeshListing PlyMergeDatasetReader::make_listing(const fs::path& input_dir
   return listing;
 }
 
-void PlyMergeDatasetReader::ensure_bundle_loaded(const std::string& bundle_file) {
+void PlyMergeDatasetReader::set_bundle_loaded_callback(const PackBundleLoadedCallback callback) {
+  bundle_loaded_callback_ = std::move(callback);
+}
+
+void PlyMergeDatasetReader::report_bundle_loaded(const PackBundleLoadedInfo& info) {
+  if (bundle_loaded_callback_) {
+    bundle_loaded_callback_(info);
+    return;
+  }
+
+  const double bytes = static_cast<double>(info.size_bytes);
+  std::cout << std::fixed;
+  std::cout << "pack: loaded bundle " << info.bundle_file << " into memory (";
+  if (bytes >= 1e9) {
+    std::cout << std::setprecision(2) << (bytes / 1e9) << " GB";
+  } else {
+    std::cout << std::setprecision(2) << (bytes / 1e6) << " MB";
+  }
+  std::cout << std::setprecision(6) << ")  bundle read " << info.read_wall_seconds << " s  CPU "
+            << info.read_cpu_seconds << " s\n"
+            << std::flush;
+}
+
+void PlyMergeDatasetReader::ensure_bundle_loaded(const std::string& bundle_file,
+                                                 const std::size_t mesh_index) {
   if (loaded_bundle_file_ == bundle_file) {
     return;
   }
@@ -127,22 +151,20 @@ void PlyMergeDatasetReader::ensure_bundle_loaded(const std::string& bundle_file)
   cpu.stop();
   wall.stop();
   loaded_bundle_file_ = bundle_file;
-  const double bytes = static_cast<double>(loaded_bundle_bytes_.size());
-  std::cout << std::fixed;
-  std::cout << "pack: loaded bundle " << bundle_file << " into memory (";
-  if (bytes >= 1e9) {
-    std::cout << std::setprecision(2) << (bytes / 1e9) << " GB";
-  } else {
-    std::cout << std::setprecision(2) << (bytes / 1e6) << " MB";
-  }
-  std::cout << std::setprecision(6) << ")  elapsed " << wall.elapsed_seconds() << " s  CPU "
-            << cpu.elapsed_seconds() << " s\n"
-            << std::flush;
+
+  report_bundle_loaded(PackBundleLoadedInfo{
+      .bundle_file = bundle_file,
+      .size_bytes = loaded_bundle_bytes_.size(),
+      .read_wall_seconds = wall.elapsed_seconds(),
+      .read_cpu_seconds = cpu.elapsed_seconds(),
+      .mesh_index = mesh_index,
+  });
 }
 
 TinMesh PlyMergeDatasetReader::read_mesh_from_entry(const PlyMergeEntry& entry,
+                                                    const std::size_t mesh_index,
                                                     const PlyReadContent content) {
-  ensure_bundle_loaded(entry.bundle_file);
+  ensure_bundle_loaded(entry.bundle_file, mesh_index);
 
   const std::uint64_t end_bytes = entry.offset_bytes + entry.size_bytes;
   if (end_bytes > loaded_bundle_bytes_.size()) {
@@ -159,7 +181,7 @@ TinMesh PlyMergeDatasetReader::read_mesh(const std::size_t index, const PlyReadC
   if (index >= entries_.size()) {
     throw std::out_of_range("PlyMergeDatasetReader::read_mesh: index out of range");
   }
-  return read_mesh_from_entry(entries_[index], content);
+  return read_mesh_from_entry(entries_[index], index, content);
 }
 
 namespace {

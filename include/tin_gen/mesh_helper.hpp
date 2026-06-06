@@ -121,8 +121,9 @@ class DatasetMeshLoadProgress {
  public:
   DatasetMeshLoadProgress(const DatasetMeshListing& listing, std::string_view label);
 
-  /// Call before reading mesh @p index (0-based) to announce bundle changes.
-  void before_mesh(std::size_t index);
+  /// Called after a bundle file has been read from disk into memory.
+  void on_bundle_loaded(std::string_view bundle_file, std::size_t size_bytes,
+                        double read_wall_seconds, double read_cpu_seconds, std::size_t mesh_index);
 
   /// @p loaded is the number of meshes read so far (1-based, up to total).
   void mark_loaded(std::size_t loaded);

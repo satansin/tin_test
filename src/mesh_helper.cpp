@@ -281,8 +281,11 @@ LoadedDatasetMeshes load_all_dataset_meshes(const fs::path& input_dir, ListMeshF
     loaded.meshes.reserve(reader.mesh_count());
 
     DatasetMeshLoadProgress progress(loaded.listing, progress_label);
+    reader.set_bundle_loaded_callback([&progress](const PackBundleLoadedInfo& info) {
+      progress.on_bundle_loaded(info.bundle_file, info.size_bytes, info.read_wall_seconds,
+                                info.read_cpu_seconds, info.mesh_index);
+    });
     for (std::size_t i = 0; i < reader.mesh_count(); ++i) {
-      progress.before_mesh(i);
       TinMesh mesh = reader.read_mesh(i, content);
       require_non_empty_mesh(mesh, command, loaded.listing.paths[i]);
       loaded.meshes.push_back(std::move(mesh));
@@ -296,7 +299,6 @@ LoadedDatasetMeshes load_all_dataset_meshes(const fs::path& input_dir, ListMeshF
 
   DatasetMeshLoadProgress progress(loaded.listing, progress_label);
   for (std::size_t i = 0; i < loaded.listing.paths.size(); ++i) {
-    progress.before_mesh(i);
     TinMesh mesh = read_ply(loaded.listing.paths[i].string(), content);
     require_non_empty_mesh(mesh, command, loaded.listing.paths[i]);
     loaded.meshes.push_back(std::move(mesh));
@@ -384,21 +386,24 @@ DatasetMeshLoadProgress::DatasetMeshLoadProgress(const DatasetMeshListing& listi
   }
 }
 
-void DatasetMeshLoadProgress::before_mesh(const std::size_t index) {
-  if (listing_.source != DatasetMeshSource::Pack || index >= listing_.pack_bundles.size()) {
-    return;
-  }
-
-  const std::string& bundle = listing_.pack_bundles[index];
-  if (bundle == active_bundle_) {
-    return;
-  }
-
-  active_bundle_ = bundle;
+void DatasetMeshLoadProgress::on_bundle_loaded(const std::string_view bundle_file,
+                                               const std::size_t size_bytes,
+                                               const double read_wall_seconds,
+                                               const double read_cpu_seconds,
+                                               const std::size_t mesh_index) {
+  active_bundle_ = std::string(bundle_file);
   const double elapsed = elapsed_seconds_since(start_);
-  std::cout << std::fixed << std::setprecision(6);
-  std::cout << label_ << ": reading bundle " << bundle << " (mesh " << (index + 1) << '/'
-            << total_ << ")  elapsed " << elapsed << " s";
+  std::cout << std::fixed;
+  std::cout << label_ << ": loaded bundle " << bundle_file << " into memory (";
+  const double bytes = static_cast<double>(size_bytes);
+  if (bytes >= 1e9) {
+    std::cout << std::setprecision(2) << (bytes / 1e9) << " GB";
+  } else {
+    std::cout << std::setprecision(2) << (bytes / 1e6) << " MB";
+  }
+  std::cout << std::setprecision(6) << ")  mesh " << (mesh_index + 1) << '/' << total_
+            << "  bundle read " << read_wall_seconds << " s  CPU " << read_cpu_seconds
+            << " s  elapsed " << elapsed << " s";
   append_resident_memory(std::cout);
   std::cout << '\n' << std::flush;
 }

@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -70,6 +71,16 @@ struct PlyMergeResult {
 [[nodiscard]] TinMesh read_ply_from_merge_by_index(const std::filesystem::path& manifest_path,
                                                    std::size_t mesh_index);
 
+struct PackBundleLoadedInfo {
+  std::string bundle_file;
+  std::size_t size_bytes = 0;
+  double read_wall_seconds = 0.0;
+  double read_cpu_seconds = 0.0;
+  std::size_t mesh_index = 0;  // 0-based mesh that triggered the load
+};
+
+using PackBundleLoadedCallback = std::function<void(const PackBundleLoadedInfo&)>;
+
 /// Efficient pack reader: manifest and each bundle file are read from storage once.
 class PlyMergeDatasetReader {
  public:
@@ -83,18 +94,23 @@ class PlyMergeDatasetReader {
   /// Build a dataset listing (paths / bundle names) without re-reading the manifest.
   [[nodiscard]] DatasetMeshListing make_listing(const std::filesystem::path& input_dir) const;
 
+  /// Called after each bundle file is read from disk into memory.
+  void set_bundle_loaded_callback(PackBundleLoadedCallback callback);
+
   /// Read mesh @p index using the in-memory bundle buffer for its bundle file.
   [[nodiscard]] TinMesh read_mesh(std::size_t index, PlyReadContent content = PlyReadContent::Full);
 
  private:
-  void ensure_bundle_loaded(const std::string& bundle_file);
-  [[nodiscard]] TinMesh read_mesh_from_entry(const PlyMergeEntry& entry,
+  void ensure_bundle_loaded(const std::string& bundle_file, std::size_t mesh_index);
+  [[nodiscard]] TinMesh read_mesh_from_entry(const PlyMergeEntry& entry, std::size_t mesh_index,
                                              PlyReadContent content = PlyReadContent::Full);
+  void report_bundle_loaded(const PackBundleLoadedInfo& info);
 
   PlyMergeManifest manifest_;
   std::vector<PlyMergeEntry> entries_;
   std::string loaded_bundle_file_;
   std::vector<char> loaded_bundle_bytes_;
+  PackBundleLoadedCallback bundle_loaded_callback_;
 };
 
 // --- Pack discovery ---
