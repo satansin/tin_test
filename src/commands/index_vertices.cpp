@@ -100,7 +100,8 @@ int run_index_vertices(const IndexVerticesConfig& config) {
   cpu_read.start();
   wall_read.start();
   const LoadedDatasetMeshes loaded = load_all_dataset_meshes(
-      input_dir, ply_list_options(config.max_objects), labels.command, load_label);
+      input_dir, ply_list_options(config.max_objects), labels.command, load_label,
+      PlyReadContent::VerticesOnly);
   cpu_read.stop();
   wall_read.stop();
 

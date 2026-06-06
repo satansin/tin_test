@@ -84,11 +84,12 @@ class PlyMergeDatasetReader {
   [[nodiscard]] DatasetMeshListing make_listing(const std::filesystem::path& input_dir) const;
 
   /// Read mesh @p index using the in-memory bundle buffer for its bundle file.
-  [[nodiscard]] TinMesh read_mesh(std::size_t index);
+  [[nodiscard]] TinMesh read_mesh(std::size_t index, PlyReadContent content = PlyReadContent::Full);
 
  private:
   void ensure_bundle_loaded(const std::string& bundle_file);
-  [[nodiscard]] TinMesh read_mesh_from_entry(const PlyMergeEntry& entry);
+  [[nodiscard]] TinMesh read_mesh_from_entry(const PlyMergeEntry& entry,
+                                             PlyReadContent content = PlyReadContent::Full);
 
   PlyMergeManifest manifest_;
   std::vector<PlyMergeEntry> entries_;

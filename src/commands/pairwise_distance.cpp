@@ -299,7 +299,8 @@ int run_pairwise_distance(const PairwiseDistanceConfig& config) {
   cpu_read.start();
   wall_read.start();
   const LoadedDatasetMeshes loaded_meshes = load_all_dataset_meshes(
-      input_dir, ply_list_options(config.max_objects), kCommand, std::string(kCommand) + " mesh files");
+      input_dir, ply_list_options(config.max_objects), kCommand, std::string(kCommand) + " mesh files",
+      PlyReadContent::VerticesOnly);
   cpu_read.stop();
   wall_read.stop();
 

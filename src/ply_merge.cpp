@@ -2,6 +2,7 @@
 
 #include "tin_gen/mesh_helper.hpp"
 #include "tin_gen/tin_mesh.hpp"
+#include "tin_gen/cpu_timer.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -118,7 +119,13 @@ void PlyMergeDatasetReader::ensure_bundle_loaded(const std::string& bundle_file)
   }
 
   const fs::path bundle_path = manifest_.manifest_path.parent_path() / bundle_file;
+  CpuTimer cpu;
+  WallTimer wall;
+  cpu.start();
+  wall.start();
   loaded_bundle_bytes_ = read_bundle_file_bytes(bundle_path);
+  cpu.stop();
+  wall.stop();
   loaded_bundle_file_ = bundle_file;
   const double bytes = static_cast<double>(loaded_bundle_bytes_.size());
   std::cout << std::fixed;
@@ -128,10 +135,13 @@ void PlyMergeDatasetReader::ensure_bundle_loaded(const std::string& bundle_file)
   } else {
     std::cout << std::setprecision(2) << (bytes / 1e6) << " MB";
   }
-  std::cout << ")\n" << std::flush;
+  std::cout << std::setprecision(6) << ")  elapsed " << wall.elapsed_seconds() << " s  CPU "
+            << cpu.elapsed_seconds() << " s\n"
+            << std::flush;
 }
 
-TinMesh PlyMergeDatasetReader::read_mesh_from_entry(const PlyMergeEntry& entry) {
+TinMesh PlyMergeDatasetReader::read_mesh_from_entry(const PlyMergeEntry& entry,
+                                                    const PlyReadContent content) {
   ensure_bundle_loaded(entry.bundle_file);
 
   const std::uint64_t end_bytes = entry.offset_bytes + entry.size_bytes;
@@ -141,16 +151,15 @@ TinMesh PlyMergeDatasetReader::read_mesh_from_entry(const PlyMergeEntry& entry) 
   }
 
   const char* const start = loaded_bundle_bytes_.data() + entry.offset_bytes;
-  std::istringstream in(std::string(start, start + entry.size_bytes));
   const std::string context = entry.bundle_file + "[" + entry.original_filename + "]";
-  return read_ply_stream(in, context);
+  return read_ply_memory(start, static_cast<std::size_t>(entry.size_bytes), context, content);
 }
 
-TinMesh PlyMergeDatasetReader::read_mesh(const std::size_t index) {
+TinMesh PlyMergeDatasetReader::read_mesh(const std::size_t index, const PlyReadContent content) {
   if (index >= entries_.size()) {
     throw std::out_of_range("PlyMergeDatasetReader::read_mesh: index out of range");
   }
-  return read_mesh_from_entry(entries_[index]);
+  return read_mesh_from_entry(entries_[index], content);
 }
 
 namespace {

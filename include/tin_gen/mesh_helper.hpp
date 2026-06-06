@@ -14,6 +14,8 @@ namespace tin_gen {
 
 struct TinMesh;
 
+enum class PlyReadContent { Full, VerticesOnly };
+
 // --- Mesh format (generate / write) ---
 
 enum class MeshFormat { Ply, Obj };
@@ -99,7 +101,8 @@ struct LoadedDatasetMeshes {
 /// List and read every mesh in @p input_dir (pack or per-file) with progress reporting.
 [[nodiscard]] LoadedDatasetMeshes load_all_dataset_meshes(
     const std::filesystem::path& input_dir, ListMeshFilesOptions opts,
-    std::string_view command, std::string_view progress_label);
+    std::string_view command, std::string_view progress_label,
+    PlyReadContent content = PlyReadContent::Full);
 
 // --- Folder mesh load progress (normalize / kd / rs / pairwise_distance) ---
 

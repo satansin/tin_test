@@ -18,10 +18,15 @@ struct TinMesh {
   [[nodiscard]] bool is_watertight() const;
 };
 
-TinMesh read_ply(const std::string& filepath);
+TinMesh read_ply(const std::string& filepath, PlyReadContent content = PlyReadContent::Full);
 
 /// Parse PLY from an open stream. @p context appears in error messages.
-[[nodiscard]] TinMesh read_ply_stream(std::istream& in, std::string_view context);
+[[nodiscard]] TinMesh read_ply_stream(std::istream& in, std::string_view context,
+                                    PlyReadContent content = PlyReadContent::Full);
+
+/// Parse PLY from a memory buffer without copying the payload.
+[[nodiscard]] TinMesh read_ply_memory(const char* data, std::size_t size, std::string_view context,
+                                      PlyReadContent content = PlyReadContent::Full);
 
 void write_mesh(const std::string& filepath, const TinMesh& mesh, MeshFormat format);
 
