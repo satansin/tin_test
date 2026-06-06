@@ -110,7 +110,7 @@ struct LoadedDatasetMeshes {
 
 // --- Folder mesh load progress (normalize / kd / rs / pairwise_distance) ---
 
-inline constexpr std::size_t kFolderMeshLoadProgressInterval = 2000;
+inline constexpr std::size_t kFolderMeshLoadProgressInterval = 1000;
 
 /// Current process resident memory (best effort; 0 if unavailable).
 [[nodiscard]] std::size_t current_process_resident_bytes();
