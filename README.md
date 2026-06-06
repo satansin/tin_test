@@ -183,6 +183,37 @@ Command aliases: `gen` (generate), `norm` (normalize), `kd` (kdvertices), `rs`, 
 
 Requires a sibling `tin_exp` directory. Uses `build/release/tin_test` when present, else `build/debug` (override with `TIN_TEST_BIN`).
 
+### Real dataset statistics
+
+Counts and formats for the four real-world datasets used in experiments. Folder names match `datasets_raw/` and `datasets_normalized/`.
+
+**Original dataset** (upstream sources, before this repo):
+
+| Dataset | Format | Meshes | Notes |
+|---------|--------|--------|-------|
+| ModelNet40 | OFF | 12,311 | Count from CSV |
+| ModelNet40_auto_aligned | OFF | 12,311 | |
+| ModelNet40_manually_aligned | OFF | 12,311 | |
+| ShapeNetCore | OBJ | 52,472 | Count from original files |
+
+**Raw datasets** (`../tin_exp/datasets_raw/<name>/`):
+
+| Dataset | Format | Meshes | Notes |
+|---------|--------|--------|-------|
+| ModelNet40 | PLY | 9,449 | `metadata.txt`: filename, category, #v, #f, … |
+| ModelNet40_auto_aligned | PLY | 12,311 | `metadata.txt`: filename, category, #v, #f, … |
+| ModelNet40_manually_aligned | PLY | 12,311 | `metadata.txt`: filename, category, #v, #f, … |
+| ShapeNetCore | PLY | 51,209 | 52,472 entries in `metadata.txt` (filename, category, #v, #f, …) |
+
+**Normalized datasets** (`../tin_exp/datasets_normalized/<name>/`):
+
+| Dataset | Format | Meshes | Notes |
+|---------|--------|--------|-------|
+| ModelNet40 | PLY | 9,449 | Zero-mean translation only (no scaling) |
+| ModelNet40_auto_aligned | PLY | 12,311 | |
+| ModelNet40_manually_aligned | PLY | 12,311 | |
+| ShapeNetCore | PLY | 51,176 | |
+
 | Script | Input | Output |
 |--------|--------|--------|
 | `scripts/normalize_datasets.sh` | `output_synthetic/`, `../tin_exp/datasets_raw/` | `../tin_exp/datasets_normalized/<name>/` |
