@@ -17,6 +17,12 @@ if(NOT qhull_POPULATED)
   FetchContent_Populate(qhull)
 endif()
 
+execute_process(
+  COMMAND ${CMAKE_COMMAND} -DQHULL_SOURCE_DIR=${TIN_QHULL_SOURCE_DIR}
+          -P ${CMAKE_CURRENT_LIST_DIR}/patch_qhull_cpp20.cmake
+  COMMAND_ERROR_IS_FATAL ANY
+)
+
 if(NOT EXISTS "${TIN_QHULL_SOURCE_DIR}/src/libqhullcpp/Qhull.h")
   message(FATAL_ERROR "Qhull sources missing at ${TIN_QHULL_SOURCE_DIR}")
 endif()

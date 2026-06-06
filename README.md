@@ -439,5 +439,6 @@ third_party/qhull/               # created at configure (gitignored)
 | Git fetch fails on server | Copy `third_party/trimesh2` and `third_party/qhull` from another machine |
 | Very slow generation | Use **Release** build and `--quiet`; exact vertex counts need many Qhull passes per mesh — 500 vertices is much slower than 200 |
 | `Nonrepresentable section on output` linking Qhull | Pull latest CMake: only Qhull **libraries** are built (not `user_eg3` / CLI tools) |
+| Qhull `QhullLinkedList` / `template-id not allowed for destructor` on Linux GCC | Qhull 8.0.2 + C++20; pull latest (auto-patches Qhull headers) or re-run `cmake` after `rm -rf third_party/qhull build/release` |
 | `Ambiguous output redirect` with `tee` | You are in tcsh: use `>&` or `--log` / `--log-only`; see [Logging](#logging) |
 | `LOG_FILE=...: Command not found` | tcsh: use `--log PATH` on `generate_synthetic_datasets.sh`, or `setenv LOG_FILE PATH` then run it from bash |
