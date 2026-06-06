@@ -59,6 +59,10 @@ struct DatasetMeshListing {
   std::filesystem::path input_dir;
   std::filesystem::path pack_manifest;
   std::vector<std::filesystem::path> paths;
+  /// When @p source is Pack, bundle file for each mesh in @p paths (same length).
+  std::vector<std::string> pack_bundles;
+  /// When @p source is Pack, distinct bundle files in mesh order (e.g. merged_000.tinply, …).
+  std::vector<std::string> pack_bundle_names;
 };
 
 /// List meshes in @p input_dir. Uses pack bundles when `pack.setting` or a parallel
@@ -106,7 +110,27 @@ inline constexpr std::size_t kFolderMeshLoadProgressInterval = 2000;
 
 /// Reports @p loaded / @p total, elapsed seconds, and resident memory to stdout.
 void report_folder_mesh_load_progress(std::size_t loaded, std::size_t total,
-                                      double elapsed_seconds, std::string_view label);
+                                      double elapsed_seconds, std::string_view label,
+                                      std::string_view bundle = {});
+
+/// Progress reporter for load_all_dataset_meshes(); prints start/bundle/progress lines.
+class DatasetMeshLoadProgress {
+ public:
+  DatasetMeshLoadProgress(const DatasetMeshListing& listing, std::string_view label);
+
+  /// Call before reading mesh @p index (0-based) to announce bundle changes.
+  void before_mesh(std::size_t index);
+
+  /// @p loaded is the number of meshes read so far (1-based, up to total).
+  void mark_loaded(std::size_t loaded);
+
+ private:
+  const DatasetMeshListing& listing_;
+  std::string label_;
+  std::size_t total_ = 0;
+  std::string active_bundle_;
+  std::chrono::steady_clock::time_point start_;
+};
 
 /// Call mark_loaded(1..total) after each mesh file is read from disk.
 class FolderMeshLoadProgress {

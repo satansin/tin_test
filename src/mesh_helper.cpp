@@ -189,8 +189,15 @@ DatasetMeshListing list_dataset_meshes(const fs::path& input_dir, ListMeshFilesO
     }
 
     listing.paths.reserve(entries.size());
+    listing.pack_bundles.reserve(entries.size());
+    std::string last_bundle;
     for (const PlyMergeEntry& entry : entries) {
       listing.paths.push_back(input_dir / entry.original_filename);
+      listing.pack_bundles.push_back(entry.bundle_file);
+      if (entry.bundle_file != last_bundle) {
+        listing.pack_bundle_names.push_back(entry.bundle_file);
+        last_bundle = entry.bundle_file;
+      }
     }
 
     if (listing.paths.empty()) {
@@ -252,7 +259,11 @@ void require_non_empty_mesh(const TinMesh& mesh, const std::string_view command,
 
 void print_dataset_mesh_source(std::ostream& out, const DatasetMeshListing& listing) {
   if (listing.source == DatasetMeshSource::Pack) {
-    out << "  mesh_source: pack (" << listing.pack_manifest.string() << ")\n";
+    out << "  mesh_source: pack (" << listing.pack_manifest.string() << ")";
+    if (!listing.pack_bundle_names.empty()) {
+      out << ", " << listing.pack_bundle_names.size() << " bundles";
+    }
+    out << '\n';
   } else {
     out << "  mesh_source: per-file\n";
   }
@@ -265,8 +276,9 @@ LoadedDatasetMeshes load_all_dataset_meshes(const fs::path& input_dir, ListMeshF
   loaded.listing = list_dataset_meshes_for_command(input_dir, opts, command);
   loaded.meshes.reserve(loaded.listing.paths.size());
 
-  FolderMeshLoadProgress progress(loaded.listing.paths.size(), progress_label);
+  DatasetMeshLoadProgress progress(loaded.listing, progress_label);
   for (std::size_t i = 0; i < loaded.listing.paths.size(); ++i) {
+    progress.before_mesh(i);
     TinMesh mesh = read_dataset_mesh(loaded.listing, i);
     require_non_empty_mesh(mesh, command, loaded.listing.paths[i]);
     loaded.meshes.push_back(std::move(mesh));
@@ -303,18 +315,93 @@ std::size_t current_process_resident_bytes() {
 #endif
 }
 
+namespace {
+
+void append_resident_memory(std::ostream& out) {
+  const std::size_t resident = current_process_resident_bytes();
+  if (resident > 0) {
+    out << std::fixed << std::setprecision(2) << "  memory "
+        << (static_cast<double>(resident) / 1e6) << " MB";
+  }
+}
+
+}  // namespace
+
 void report_folder_mesh_load_progress(const std::size_t loaded, const std::size_t total,
                                       const double elapsed_seconds,
-                                      const std::string_view label) {
-  const std::size_t resident = current_process_resident_bytes();
+                                      const std::string_view label,
+                                      const std::string_view bundle) {
   std::cout << std::fixed << std::setprecision(6);
   std::cout << label << ": loaded " << loaded << '/' << total << "  elapsed " << elapsed_seconds
             << " s";
-  if (resident > 0) {
-    std::cout << std::setprecision(2) << "  memory " << (static_cast<double>(resident) / 1e6)
-              << " MB";
+  if (!bundle.empty()) {
+    std::cout << "  bundle " << bundle;
   }
+  append_resident_memory(std::cout);
   std::cout << '\n' << std::flush;
+}
+
+DatasetMeshLoadProgress::DatasetMeshLoadProgress(const DatasetMeshListing& listing,
+                                                 const std::string_view label)
+    : listing_(listing), label_(label), total_(listing.paths.size()),
+      start_(std::chrono::steady_clock::now()) {
+  if (listing_.source == DatasetMeshSource::Pack) {
+    std::cout << label_ << ": start reading " << total_ << " meshes from pack";
+    if (!listing_.pack_bundle_names.empty()) {
+      std::cout << " (" << listing_.pack_bundle_names.size() << " bundles)";
+    }
+    std::cout << '\n'
+              << "  manifest: " << listing_.pack_manifest.string() << '\n';
+    if (!listing_.pack_bundle_names.empty()) {
+      std::cout << "  bundles:";
+      for (const std::string& bundle : listing_.pack_bundle_names) {
+        std::cout << ' ' << bundle;
+      }
+      std::cout << '\n';
+    }
+    std::cout << std::flush;
+  } else {
+    std::cout << label_ << ": start reading " << total_ << " meshes from "
+              << listing_.input_dir.string() << '\n' << std::flush;
+  }
+}
+
+void DatasetMeshLoadProgress::before_mesh(const std::size_t index) {
+  if (listing_.source != DatasetMeshSource::Pack || index >= listing_.pack_bundles.size()) {
+    return;
+  }
+
+  const std::string& bundle = listing_.pack_bundles[index];
+  if (bundle == active_bundle_) {
+    return;
+  }
+
+  active_bundle_ = bundle;
+  const double elapsed = elapsed_seconds_since(start_);
+  std::cout << std::fixed << std::setprecision(6);
+  std::cout << label_ << ": reading bundle " << bundle << " (mesh " << (index + 1) << '/'
+            << total_ << ")  elapsed " << elapsed << " s";
+  append_resident_memory(std::cout);
+  std::cout << '\n' << std::flush;
+}
+
+void DatasetMeshLoadProgress::mark_loaded(const std::size_t loaded) {
+  if (total_ == 0 || loaded == 0 || loaded > total_) {
+    return;
+  }
+
+  const bool at_interval = loaded % kFolderMeshLoadProgressInterval == 0;
+  const bool at_end = loaded == total_;
+  if (!at_interval && !at_end) {
+    return;
+  }
+
+  std::string_view bundle;
+  if (listing_.source == DatasetMeshSource::Pack && loaded <= listing_.pack_bundles.size()) {
+    bundle = listing_.pack_bundles[loaded - 1];
+  }
+
+  report_folder_mesh_load_progress(loaded, total_, elapsed_seconds_since(start_), label_, bundle);
 }
 
 FolderMeshLoadProgress::FolderMeshLoadProgress(const std::size_t total,
