@@ -12,7 +12,7 @@ IndexVerticesConfig default_index_vertices_config(const VertexIndexKind kind) {
     config.output_dir = "sample_kdvertices";
     config.combined_file = "combined.kdtree";
   } else {
-    config.output_dir = "sample_rs";
+    config.output_dir = "sample_rsvertices";
     config.combined_file = "combined.rstree";
   }
   return config;

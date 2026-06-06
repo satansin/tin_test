@@ -9,8 +9,8 @@ set -euo pipefail
 #   - raw datasets under ../tin_exp/datasets_raw/<dataset>/
 #
 # Output:
-#   - ../tin_exp/datasets_normalized/synthetic_<dataset>/
-#   - ../tin_exp/datasets_normalized/<dataset>/
+#   - ../tin_exp/datasets_norm/synthetic_<dataset>/
+#   - ../tin_exp/datasets_norm/<dataset>/
 
 MODE="${1:-small}"
 
@@ -18,7 +18,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BIN="${TIN_TEST_BIN:-${ROOT}/build/release/tin_test}"
 SYNTH_ROOT="${ROOT}/output_synthetic"
 RAW_ROOT="${ROOT}/../tin_exp/datasets_raw"
-NORM_ROOT="${ROOT}/../tin_exp/datasets_normalized"
+NORM_ROOT="${ROOT}/../tin_exp/datasets_norm"
 
 mkdir -p "${NORM_ROOT}"
 

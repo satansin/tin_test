@@ -40,11 +40,13 @@ add_library(tin_gen
   src/backends/generator.cpp
   src/commands/generate.cpp
   src/commands/normalize.cpp
+  src/commands/compress_ply.cpp
   src/commands/index_vertices.cpp
   src/commands/distance.cpp
   src/commands/pairwise_distance.cpp
   src/kd_tree.cpp
   src/rs_tree.cpp
+  src/ply_merge.cpp
   src/vertex_distance.cpp
   src/distance_algorithm.cpp
   src/index_vertices_config.cpp
@@ -54,6 +56,7 @@ add_library(tin_gen
   src/convex_hull_vertices.cpp
   src/config.cpp
   src/normalize_config.cpp
+  src/compress_ply_config.cpp
   src/console.cpp
   src/cpu_timer.cpp
   src/mesh_helper.cpp

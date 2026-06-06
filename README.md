@@ -122,7 +122,25 @@ Translates each mesh so the vertex mean is at the origin (subtracts the per-mesh
 | `-o, --output-dir DIR` | `sample_normalized` | Output folder for normalized `.ply` files |
 | `--max-objects N` | all | Normalize at most N meshes |
 
-Folder commands (`normalize`, `kd`, `rs`, `pairwise_distance`) list every matching mesh file in the input directory (`.ply` by default), sorted by numeric `name_NUMBER` suffix when present (`object_1`, `object_2`, …, `object_10`), otherwise lexicographic by filename. A `metadata.txt` file in the folder is ignored.
+### Compress (PLY merge)
+
+Concatenates per-mesh `.ply` files into bundle files (`.tinply`, default max **5000** meshes per bundle) plus `ply_merge_manifest.txt` with byte offsets for each original file. Intended for large normalized datasets (e.g. ShapeNetCore). Bundles store original PLY bytes unchanged.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-i, --input-dir DIR` | (required) | Folder containing `.ply` files |
+| `-o, --output-dir DIR` | `sample_pack` | Output folder for bundles + manifest |
+| `--max-meshes-per-bundle N` | `5000` | Start a new bundle after N meshes |
+| `--max-objects N` | all | Merge at most N meshes |
+
+```bash
+./build/release/tin_test compress -i ../tin_exp/datasets_norm/ShapeNetCore \
+  -o ../tin_exp/datasets_norm_pack/ShapeNetCore
+```
+
+C++ API: `write_ply_merge()`, `load_ply_merge_manifest()`, `read_ply_from_merge()` in `include/tin_gen/ply_merge.hpp`.
+
+Folder commands (`normalize`, `compress`, `kd`, `rs`, `pairwise_distance`) list every matching mesh file in the input directory (`.ply` by default), sorted by numeric `name_NUMBER` suffix when present (`object_1`, `object_2`, …, `object_10`), otherwise lexicographic by filename. A `metadata.txt` file in the folder is ignored.
 
 ### Index build options (`kd` / `rs`)
 
@@ -131,7 +149,7 @@ Both commands share the same flags; defaults depend on the command.
 | Flag | `kd` default | `rs` default | Description |
 |------|--------------|--------------|-------------|
 | `-i, --input-dir DIR` | (required) | (required) | Folder containing `.ply` files |
-| `-o, --output-dir DIR` | `sample_kdvertices` | `sample_rs` | Output directory |
+| `-o, --output-dir DIR` | `sample_kdvertices` | `sample_rsvertices` | Output directory |
 | `--max-objects N` | all | all | Process at most N meshes |
 | `--combined` | off | off | Write one bundle instead of per-mesh files |
 | `--combined-file PATH` | `combined.kdtree` | `combined.rstree` | Bundle filename with `--combined` |
@@ -171,8 +189,8 @@ Default output: `sample_pd/pairwise_distances_<algorithm>.txt` (e.g. `pairwise_d
 ```bash
 ./build/release/tin_test pairwise_distance --input-dir sample_normalized
 ./build/release/tin_test pairwise_distance -i sample_normalized -o sample_pd/pairwise_distances_vertex.txt
-./build/release/tin_test rs --input-dir sample_normalized --output-dir sample_rs --combined
-./build/release/tin_test pd -i sample_normalized --rs-dir sample_rs
+./build/release/tin_test rs --input-dir sample_normalized --output-dir sample_rsvertices --combined
+./build/release/tin_test pd -i sample_normalized --rs-dir sample_rsvertices
 ```
 
 With `--rs-dir` (or `-rs`), R*-trees are loaded from that folder: if `combined.rstree` exists (`rs --combined`), all trees are read from the bundle; otherwise each `object_N.rstree` is loaded separately. Without `--rs-dir`, in-memory R*-trees are built before the matrix; console output includes separate timing for **rs build** / **rs load** and **matrix** computation. Use `--kd-dir` (or `-kd`) to load KD-trees instead (`--rs-dir` and `--kd-dir` are mutually exclusive).
@@ -185,7 +203,7 @@ Requires a sibling `tin_exp` directory. Uses `build/release/tin_test` when prese
 
 ### Real dataset statistics
 
-Counts and formats for the four real-world datasets used in experiments. Folder names match `datasets_raw/` and `datasets_normalized/`.
+Counts and formats for the four real-world datasets used in experiments. Folder names match `datasets_raw/` and `datasets_norm/`.
 
 **Original dataset** (upstream sources, before this repo):
 
@@ -205,7 +223,7 @@ Counts and formats for the four real-world datasets used in experiments. Folder 
 | ModelNet40_manually_aligned | PLY | 12,311 | `metadata.txt`: filename, category, #v, #f, … |
 | ShapeNetCore | PLY | 51,209 | 52,472 entries in `metadata.txt` (filename, category, #v, #f, …) |
 
-**Normalized datasets** (`../tin_exp/datasets_normalized/<name>/`):
+**Normalized datasets** (`../tin_exp/datasets_norm/<name>/`):
 
 | Dataset | Format | Meshes | Notes |
 |---------|--------|--------|-------|
@@ -216,14 +234,17 @@ Counts and formats for the four real-world datasets used in experiments. Folder 
 
 | Script | Input | Output |
 |--------|--------|--------|
-| `scripts/normalize_datasets.sh` | `output_synthetic/`, `../tin_exp/datasets_raw/` | `../tin_exp/datasets_normalized/<name>/` |
-| `scripts/build_rs_datasets.sh` | `../tin_exp/datasets_normalized/<name>/` | `../tin_exp/datasets_norm_rs/<name>/` |
-| `scripts/build_kd_datasets.sh` | `../tin_exp/datasets_normalized/<name>/` | `../tin_exp/datasets_norm_kd/<name>/` |
-| `scripts/compute_pd_datasets.sh` | `../tin_exp/datasets_normalized/<name>/`, `../tin_exp/datasets_norm_rs/<name>/` | `../tin_exp/datasets_norm_pd/<name>/pairwise_distances_vertex.txt` |
+| `scripts/normalize_datasets.sh` | `output_synthetic/`, `../tin_exp/datasets_raw/` | `../tin_exp/datasets_norm/<name>/` |
+| `scripts/compress_datasets.sh` | `../tin_exp/datasets_norm/<name>/` | `../tin_exp/datasets_norm_pack/<name>/` |
+| `scripts/build_rs_datasets.sh` | `../tin_exp/datasets_norm_pack/<name>/` | `../tin_exp/datasets_norm_rs/<name>/` |
+| `scripts/build_kd_datasets.sh` | `../tin_exp/datasets_norm_pack/<name>/` | `../tin_exp/datasets_norm_kd/<name>/` |
+| `scripts/compute_pd_datasets.sh` | `../tin_exp/datasets_norm_pack/<name>/`, `../tin_exp/datasets_norm_rs/<name>/` | `../tin_exp/datasets_norm_pd/<name>/pairwise_distances_vertex.txt` |
 
 ```bash
 ./scripts/normalize_datasets.sh          # small (default)
 ./scripts/normalize_datasets.sh full
+./scripts/compress_datasets.sh           # after normalize
+./scripts/compress_datasets.sh full
 ./scripts/build_rs_datasets.sh           # after normalize (default index)
 ./scripts/build_rs_datasets.sh full
 ./scripts/build_kd_datasets.sh           # optional KD-tree indexes
@@ -232,11 +253,13 @@ Counts and formats for the four real-world datasets used in experiments. Folder 
 ./scripts/compute_pd_datasets.sh full
 ```
 
-`build_rs_datasets.sh` runs `tin_test rs --combined` on each normalized subfolder and writes one bundle per dataset (e.g. `datasets_norm_rs/modelnet40/combined.rstree`).
+`compress_datasets.sh` runs `tin_test compress` on each normalized subfolder and writes bundle files + `ply_merge_manifest.txt` under `../tin_exp/datasets_norm_pack/<name>/` (max 5000 meshes per `.tinply` bundle).
 
-`build_kd_datasets.sh` runs `tin_test kd --combined` on each normalized subfolder and writes one bundle per dataset (e.g. `datasets_norm_kd/modelnet40/combined.kdtree`).
+`build_rs_datasets.sh` runs `tin_test rs --combined` on each packed subfolder (`datasets_norm_pack/`) and writes one bundle per dataset (e.g. `datasets_norm_rs/ModelNet40/combined.rstree`). Run `compress_datasets.sh` first.
 
-`compute_pd_datasets.sh` runs `tin_test pd --algorithm vertex --rs-dir …` on each dataset. **Small** mode: all synthetic presets plus at most 100 meshes per raw dataset; **full** mode: every subfolder under `datasets_normalized`, no mesh limit.
+`build_kd_datasets.sh` runs `tin_test kd --combined` on each packed subfolder and writes one bundle per dataset (e.g. `datasets_norm_kd/ModelNet40/combined.kdtree`). Run `compress_datasets.sh` first.
+
+`compute_pd_datasets.sh` runs `tin_test pd --algorithm vertex --rs-dir …` on each packed dataset. **Small** mode: all synthetic presets plus at most 100 meshes per raw dataset; **full** mode: every subfolder under `datasets_norm_pack`, no mesh limit. Run `compress_datasets.sh` and `build_rs_datasets.sh` first.
 
 ## Synthetic datasets script
 

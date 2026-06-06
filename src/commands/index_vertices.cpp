@@ -105,12 +105,13 @@ int run_index_vertices(const IndexVerticesConfig& config) {
   list_opts.max_objects = config.max_objects;
   list_opts.extension = mesh_format_extension(MeshFormat::Ply);
 
-  std::vector<fs::path> ply_files;
+  DatasetMeshListing listing;
   try {
-    ply_files = list_mesh_files_in_directory(input_dir, list_opts);
+    listing = list_dataset_meshes(input_dir, list_opts);
   } catch (const std::runtime_error& error) {
     throw std::runtime_error(std::string(labels.command) + ": " + error.what());
   }
+  const std::vector<fs::path>& ply_files = listing.paths;
 
   std::vector<MeshPoints> meshes;
   meshes.reserve(ply_files.size());
@@ -123,7 +124,7 @@ int run_index_vertices(const IndexVerticesConfig& config) {
   cpu_read.start();
   wall_read.start();
   for (std::size_t i = 0; i < ply_files.size(); ++i) {
-    const TinMesh mesh = read_ply(ply_files[i].string());
+    const TinMesh mesh = read_dataset_mesh(listing, i);
     if (mesh.vertices.empty()) {
       throw std::runtime_error(std::string(labels.command) + ": mesh has no vertices: " +
                                ply_files[i].string());
@@ -150,8 +151,13 @@ int run_index_vertices(const IndexVerticesConfig& config) {
   wall_build.stop();
 
   std::cout << labels.command << '\n'
-            << "  input: " << input_dir.string() << " (" << meshes.size() << " meshes)\n"
-            << "  output: " << output_dir.string();
+            << "  input: " << input_dir.string() << " (" << meshes.size() << " meshes)\n";
+  if (listing.source == DatasetMeshSource::Pack) {
+    std::cout << "  mesh_source: pack (" << listing.pack_manifest.string() << ")\n";
+  } else {
+    std::cout << "  mesh_source: per-file\n";
+  }
+  std::cout << "  output: " << output_dir.string();
   if (config.combined_output) {
     std::cout << " (" << config.combined_file << ")\n";
   } else {

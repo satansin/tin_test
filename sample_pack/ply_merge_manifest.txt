@@ -1,0 +1,16 @@
+# tin_test ply_merge_manifest v1
+source_dir	sample_normalized
+max_meshes_per_bundle	5000
+mesh_count	10
+bundle_count	1
+# bundle_file	mesh_index	original_filename	offset_bytes	size_bytes
+merged_000.tinply	0	object_1.ply	0	10805
+merged_000.tinply	1	object_2.ply	10805	10825
+merged_000.tinply	2	object_3.ply	21630	10778
+merged_000.tinply	3	object_4.ply	32408	10803
+merged_000.tinply	4	object_5.ply	43211	10788
+merged_000.tinply	5	object_6.ply	53999	10798
+merged_000.tinply	6	object_7.ply	64797	10808
+merged_000.tinply	7	object_8.ply	75605	10801
+merged_000.tinply	8	object_9.ply	86406	10813
+merged_000.tinply	9	object_10.ply	97219	10791

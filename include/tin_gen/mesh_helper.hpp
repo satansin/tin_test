@@ -10,6 +10,8 @@
 
 namespace tin_gen {
 
+struct TinMesh;
+
 // --- Mesh format (generate / write) ---
 
 enum class MeshFormat { Ply, Obj };
@@ -45,6 +47,25 @@ struct ListMeshFilesOptions {
 /// ordering.
 [[nodiscard]] std::vector<std::filesystem::path> list_mesh_files_in_directory(
     const std::filesystem::path& input_dir, ListMeshFilesOptions opts = {});
+
+// --- Dataset mesh listing (per-file .ply or packed bundles) ---
+
+enum class DatasetMeshSource { PerFile, Pack };
+
+struct DatasetMeshListing {
+  DatasetMeshSource source = DatasetMeshSource::PerFile;
+  std::filesystem::path input_dir;
+  std::filesystem::path pack_manifest;
+  std::vector<std::filesystem::path> paths;
+};
+
+/// List meshes in @p input_dir. Uses pack bundles when `pack.setting` or a parallel
+/// `datasets_norm_pack/<name>/` manifest exists; otherwise lists `.ply` files from disk.
+[[nodiscard]] DatasetMeshListing list_dataset_meshes(const std::filesystem::path& input_dir,
+                                                     ListMeshFilesOptions opts = {});
+
+/// Read mesh @p index from a listing returned by list_dataset_meshes().
+[[nodiscard]] TinMesh read_dataset_mesh(const DatasetMeshListing& listing, std::size_t index);
 
 // --- Folder mesh load progress (normalize / kd / rs / pairwise_distance) ---
 

@@ -5,6 +5,7 @@
 #include "tin_gen/commands/index_vertices.hpp"
 #include "tin_gen/commands/pairwise_distance.hpp"
 #include "tin_gen/commands/normalize.hpp"
+#include "tin_gen/commands/compress_ply.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -35,6 +36,9 @@ AppCommand parse_app_command(const std::string_view name) {
   if (normalized == "normalize" || normalized == "norm") {
     return AppCommand::Normalize;
   }
+  if (normalized == "compress" || normalized == "pack") {
+    return AppCommand::Compress;
+  }
   if (normalized == "kdvertices" || normalized == "kd") {
     return AppCommand::Kd;
   }
@@ -57,6 +61,8 @@ std::string_view app_command_name(const AppCommand command) {
       return "generate";
     case AppCommand::Normalize:
       return "normalize";
+    case AppCommand::Compress:
+      return "compress";
     case AppCommand::Kd:
       return "kd";
     case AppCommand::Rs:
@@ -74,12 +80,13 @@ void print_usage(const char* program) {
             << "Commands:\n"
             << "  generate (gen)   Build random TIN meshes and write files\n"
             << "  normalize (norm) Translate PLY meshes to zero mean (no scaling)\n"
+            << "  compress (pack)  Merge PLY files into bundle files + manifest\n"
             << "  kd (kdvertices)  Build KD-tree vertex indexes for meshes in a folder\n"
             << "  rs               Build R*-tree vertex indexes for meshes in a folder\n"
             << "  distance (dist)    Dissimilarity between two PLY meshes\n"
             << "  pairwise_distance (pd)  All pairwise dissimilarities in a folder\n"
             << "  help                    Show this help\n\n"
-            << "Command aliases: gen, norm, kd, rs, dist, pd\n\n"
+            << "Command aliases: gen, norm, pack, kd, rs, dist, pd\n\n"
             << "Generate options:\n"
             << "  --format FORMAT     Output mesh format: ply | obj (default: ply)\n"
             << "  -o, --output-dir DIR   Output directory (default: sample_gen)\n"
@@ -92,9 +99,14 @@ void print_usage(const char* program) {
             << "  -i, --input-dir DIR    Folder containing .ply files\n"
             << "  -o, --output-dir DIR   Output directory (default: sample_normalized)\n"
             << "  --max-objects N        Normalize at most N meshes (default: all)\n\n"
+            << "Compress options:\n"
+            << "  -i, --input-dir DIR    Folder containing .ply files (e.g. normalized dataset)\n"
+            << "  -o, --output-dir DIR   Output folder (default: sample_pack)\n"
+            << "  --max-meshes-per-bundle N   Split bundles at N meshes (default: 5000)\n"
+            << "  --max-objects N        Merge at most N meshes (default: all)\n\n"
             << "Index build options (kd / rs):\n"
             << "  -i, --input-dir DIR    Folder containing .ply files\n"
-            << "  -o, --output-dir DIR   Output directory (kd: sample_kdvertices, rs: sample_rs)\n"
+            << "  -o, --output-dir DIR   Output directory (kd: sample_kdvertices, rs: sample_rsvertices)\n"
             << "  --max-objects N        Process at most N meshes (default: all)\n"
             << "  --combined             Write one bundle (kd: combined.kdtree, rs: combined.rstree)\n"
             << "  --combined-file PATH   Bundle filename with --combined\n\n"
@@ -156,6 +168,13 @@ std::optional<AppRequest> parse_app_request(const int argc, char* argv[]) {
       return std::nullopt;
     }
     request.normalize_config = *config;
+  } else if (request.command == AppCommand::Compress) {
+    const auto config = parse_compress_ply_config(argc - option_start, argv + option_start);
+    if (!config) {
+      print_usage(argv[0]);
+      return std::nullopt;
+    }
+    request.compress_ply_config = *config;
   } else if (request.command == AppCommand::Kd) {
     const auto config =
         parse_index_vertices_config(argc - option_start, argv + option_start, VertexIndexKind::Kd);
@@ -197,6 +216,8 @@ int run_app(const AppRequest& request) {
       return run_generate(request.generate_config);
     case AppCommand::Normalize:
       return run_normalize(request.normalize_config);
+    case AppCommand::Compress:
+      return run_compress_ply(request.compress_ply_config);
     case AppCommand::Kd:
     case AppCommand::Rs:
       return run_index_vertices(request.index_vertices_config);

@@ -1,5 +1,8 @@
 #include "tin_gen/mesh_helper.hpp"
 
+#include "tin_gen/ply_merge.hpp"
+#include "tin_gen/tin_mesh.hpp"
+
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -163,6 +166,54 @@ std::vector<fs::path> list_mesh_files_in_directory(const fs::path& input_dir,
   }
 
   return mesh_files;
+}
+
+DatasetMeshListing list_dataset_meshes(const fs::path& input_dir, ListMeshFilesOptions opts) {
+  DatasetMeshListing listing;
+  listing.input_dir = input_dir;
+
+  if (const std::optional<fs::path> manifest = find_pack_manifest_for_dataset(input_dir)) {
+    listing.source = DatasetMeshSource::Pack;
+    listing.pack_manifest = *manifest;
+
+    PlyMergeManifest manifest_data = load_ply_merge_manifest(*manifest);
+    std::vector<PlyMergeEntry> entries = manifest_data.entries;
+    std::sort(entries.begin(), entries.end(),
+              [](const PlyMergeEntry& a, const PlyMergeEntry& b) {
+                return a.mesh_index < b.mesh_index;
+              });
+
+    if (opts.max_objects > 0 && entries.size() > opts.max_objects) {
+      entries.resize(opts.max_objects);
+    }
+
+    listing.paths.reserve(entries.size());
+    for (const PlyMergeEntry& entry : entries) {
+      listing.paths.push_back(input_dir / entry.original_filename);
+    }
+
+    if (listing.paths.empty()) {
+      throw std::runtime_error("no meshes listed in pack manifest: " + manifest->string());
+    }
+
+    return listing;
+  }
+
+  listing.source = DatasetMeshSource::PerFile;
+  listing.paths = list_mesh_files_in_directory(input_dir, opts);
+  return listing;
+}
+
+TinMesh read_dataset_mesh(const DatasetMeshListing& listing, const std::size_t index) {
+  if (index >= listing.paths.size()) {
+    throw std::out_of_range("read_dataset_mesh: index out of range");
+  }
+
+  if (listing.source == DatasetMeshSource::Pack) {
+    return read_ply_from_merge(listing.pack_manifest,
+                               listing.paths[index].filename().string());
+  }
+  return read_ply(listing.paths[index].string());
 }
 
 namespace {

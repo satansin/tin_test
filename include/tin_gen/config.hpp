@@ -2,6 +2,7 @@
 
 #include "tin_gen/distance_algorithm.hpp"
 #include "tin_gen/mesh_helper.hpp"
+#include "tin_gen/ply_merge.hpp"
 
 #include <cstddef>
 #include <optional>
@@ -49,6 +50,16 @@ struct IndexVerticesConfig {
 
 /// Parse options for the normalize command. Returns nullopt on -h/--help.
 [[nodiscard]] std::optional<NormalizeConfig> parse_normalize_config(int argc, char* argv[]);
+
+struct CompressPlyConfig {
+  std::string input_dir;
+  std::string output_dir = "sample_pack";
+  std::size_t max_meshes_per_bundle = kDefaultMaxMeshesPerPlyBundle;
+  std::size_t max_objects = 0;  // 0 = all
+};
+
+/// Parse options for the compress command. Returns nullopt on -h/--help.
+[[nodiscard]] std::optional<CompressPlyConfig> parse_compress_ply_config(int argc, char* argv[]);
 
 struct DistanceConfig {
   std::string path_a;

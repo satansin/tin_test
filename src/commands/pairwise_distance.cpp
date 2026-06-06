@@ -72,21 +72,6 @@ void verify_vertices_match_kdtree(const std::vector<Point>& vertices, const KdTr
   verify_vertices_match_points(vertices, tree.points(), context);
 }
 
-MeshIndex load_mesh_vertices(const fs::path& ply_path) {
-  const TinMesh mesh = read_ply(ply_path.string());
-  if (mesh.vertices.empty()) {
-    throw std::runtime_error("pairwise_distance: mesh has no vertices: " + ply_path.string());
-  }
-
-  MeshIndex entry;
-  entry.name = ply_path.filename().string();
-  entry.vertices.reserve(mesh.vertices.size());
-  for (const auto& v : mesh.vertices) {
-    entry.vertices.push_back(v);
-  }
-  return entry;
-}
-
 void build_in_memory_rs_trees(std::vector<MeshIndex>& meshes) {
   for (auto& entry : meshes) {
     entry.rs_tree = RsTree3d(entry.vertices);
@@ -314,19 +299,32 @@ int run_pairwise_distance(const PairwiseDistanceConfig& config) {
   list_opts.max_objects = config.max_objects;
   list_opts.extension = mesh_format_extension(MeshFormat::Ply);
 
-  std::vector<fs::path> ply_files;
+  DatasetMeshListing listing;
   try {
-    ply_files = list_mesh_files_in_directory(input_dir, list_opts);
+    listing = list_dataset_meshes(input_dir, list_opts);
   } catch (const std::runtime_error& error) {
     throw std::runtime_error(std::string("pairwise_distance: ") + error.what());
   }
+  const std::vector<fs::path>& ply_files = listing.paths;
 
   FolderMeshLoadProgress load_progress(ply_files.size(), "pairwise_distance mesh files");
 
   std::vector<MeshIndex> meshes;
   meshes.reserve(ply_files.size());
   for (std::size_t i = 0; i < ply_files.size(); ++i) {
-    meshes.push_back(load_mesh_vertices(ply_files[i]));
+    const TinMesh mesh = read_dataset_mesh(listing, i);
+    if (mesh.vertices.empty()) {
+      throw std::runtime_error("pairwise_distance: mesh has no vertices: " +
+                               ply_files[i].string());
+    }
+
+    MeshIndex entry;
+    entry.name = ply_files[i].filename().string();
+    entry.vertices.reserve(mesh.vertices.size());
+    for (const auto& v : mesh.vertices) {
+      entry.vertices.push_back(v);
+    }
+    meshes.push_back(std::move(entry));
     load_progress.mark_loaded(i + 1);
   }
 
@@ -390,8 +388,13 @@ int run_pairwise_distance(const PairwiseDistanceConfig& config) {
   wall_matrix.stop();
 
   std::cout << "pairwise_distance\n"
-            << "  input: " << input_dir.string() << " (" << meshes.size() << " meshes)\n"
-            << "  algorithm: " << distance_algorithm_name(config.algorithm) << '\n';
+            << "  input: " << input_dir.string() << " (" << meshes.size() << " meshes)\n";
+  if (listing.source == DatasetMeshSource::Pack) {
+    std::cout << "  mesh_source: pack (" << listing.pack_manifest.string() << ")\n";
+  } else {
+    std::cout << "  mesh_source: per-file\n";
+  }
+  std::cout << "  algorithm: " << distance_algorithm_name(config.algorithm) << '\n';
   if (kd_dir) {
     std::cout << "  kd_dir: " << kd_dir->string() << '\n';
     if (loaded_kdtrees.source == KdTreeFolderLoadSource::Bundle &&

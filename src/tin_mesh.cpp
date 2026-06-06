@@ -3,9 +3,11 @@
 #include <cstdint>
 #include <cstring>
 #include <fstream>
+#include <istream>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -122,15 +124,12 @@ void triangulate_face_indices(const std::vector<std::size_t>& idx, TinMesh& mesh
 
 }  // namespace
 
-TinMesh read_ply(const std::string& filepath) {
-  std::ifstream in(filepath, std::ios::binary);
-  if (!in) {
-    throw std::runtime_error("Failed to open PLY file for reading: " + filepath);
-  }
+TinMesh read_ply_stream(std::istream& in, const std::string_view context) {
+  const std::string context_str(context);
 
   std::string line;
   if (!std::getline(in, line) || line != "ply") {
-    throw std::runtime_error("Not a PLY file (missing 'ply' header): " + filepath);
+    throw std::runtime_error("Not a PLY file (missing 'ply' header): " + context_str);
   }
 
   std::size_t vertex_count = 0;
@@ -159,7 +158,7 @@ TinMesh read_ply(const std::string& filepath) {
       } else if (line.find("binary_big_endian") != std::string::npos) {
         format = PlyFormat::BinaryBigEndian;
       } else {
-        throw std::runtime_error("Unsupported PLY format: " + line + " (" + filepath + ")");
+        throw std::runtime_error("Unsupported PLY format: " + line + " (" + context_str + ")");
       }
       continue;
     }
@@ -221,7 +220,7 @@ TinMesh read_ply(const std::string& filepath) {
   }
 
   if (vertex_count == 0) {
-    throw std::runtime_error("PLY has 0 vertices: " + filepath);
+    throw std::runtime_error("PLY has 0 vertices: " + context_str);
   }
 
   TinMesh mesh;
@@ -241,13 +240,13 @@ TinMesh read_ply(const std::string& filepath) {
   const auto iy = find_prop_index("y");
   const auto iz = find_prop_index("z");
   if (!ix || !iy || !iz) {
-    throw std::runtime_error("PLY vertex properties must include x,y,z: " + filepath);
+    throw std::runtime_error("PLY vertex properties must include x,y,z: " + context_str);
   }
 
   if (format == PlyFormat::Ascii) {
     for (std::size_t i = 0; i < vertex_count; ++i) {
       if (!std::getline(in, line)) {
-        throw std::runtime_error("Unexpected EOF while reading vertices: " + filepath);
+        throw std::runtime_error("Unexpected EOF while reading vertices: " + context_str);
       }
       std::istringstream iss(line);
 
@@ -258,7 +257,7 @@ TinMesh read_ply(const std::string& filepath) {
       for (std::size_t p = 0; p < vertex_props.size(); ++p) {
         double v = 0.0;
         if (!(iss >> v)) {
-          throw std::runtime_error("Failed to parse vertex line: " + filepath);
+          throw std::runtime_error("Failed to parse vertex line: " + context_str);
         }
         if (p == *ix) x = v;
         if (p == *iy) y = v;
@@ -269,14 +268,14 @@ TinMesh read_ply(const std::string& filepath) {
 
     for (std::size_t i = 0; i < face_count; ++i) {
       if (!std::getline(in, line)) {
-        throw std::runtime_error("Unexpected EOF while reading faces: " + filepath);
+        throw std::runtime_error("Unexpected EOF while reading faces: " + context_str);
       }
       std::istringstream iss(line);
       for (const auto& prop : face_props) {
         if (prop.is_list) {
           int n = 0;
           if (!(iss >> n)) {
-            throw std::runtime_error("Failed to parse face list count: " + filepath);
+            throw std::runtime_error("Failed to parse face list count: " + context_str);
           }
           if (prop.list.name == "vertex_indices" || prop.list.name == "vertex_index") {
             std::vector<std::size_t> idx;
@@ -286,7 +285,7 @@ TinMesh read_ply(const std::string& filepath) {
             for (int k = 0; k < n; ++k) {
               std::size_t v = 0;
               if (!(iss >> v)) {
-                throw std::runtime_error("Failed to parse face indices: " + filepath);
+                throw std::runtime_error("Failed to parse face indices: " + context_str);
               }
               idx.push_back(v);
             }
@@ -295,14 +294,14 @@ TinMesh read_ply(const std::string& filepath) {
             double v = 0.0;
             for (int k = 0; k < n; ++k) {
               if (!(iss >> v)) {
-                throw std::runtime_error("Failed to parse face list values: " + filepath);
+                throw std::runtime_error("Failed to parse face list values: " + context_str);
               }
             }
           }
         } else {
           double v = 0.0;
           if (!(iss >> v)) {
-            throw std::runtime_error("Failed to parse face property: " + filepath);
+            throw std::runtime_error("Failed to parse face property: " + context_str);
           }
         }
       }
@@ -352,6 +351,14 @@ TinMesh read_ply(const std::string& filepath) {
   }
 
   return mesh;
+}
+
+TinMesh read_ply(const std::string& filepath) {
+  std::ifstream in(filepath, std::ios::binary);
+  if (!in) {
+    throw std::runtime_error("Failed to open PLY file for reading: " + filepath);
+  }
+  return read_ply_stream(in, filepath);
 }
 
 bool TinMesh::is_watertight() const {
