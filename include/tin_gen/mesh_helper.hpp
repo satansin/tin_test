@@ -112,6 +112,9 @@ struct LoadedDatasetMeshes {
 
 inline constexpr std::size_t kFolderMeshLoadProgressInterval = 1000;
 
+/// Upper cap for pairwise distance matrix progress reporting (see PairwiseMatrixProgress).
+inline constexpr std::size_t kPairwiseMatrixProgressIntervalMax = 10000;
+
 /// Current process resident memory (best effort; 0 if unavailable).
 [[nodiscard]] std::size_t current_process_resident_bytes();
 
@@ -135,6 +138,12 @@ class DatasetMeshLoadProgress {
 
   /// Called after the last mesh in a pack bundle has been extracted and the bundle released.
   void on_bundle_extracted(std::string_view bundle_file, std::size_t last_mesh_index);
+
+  /// Called after an index bundle file (e.g. `merged_NNN.tinrs`) has been written.
+  void on_index_bundle_written(std::string_view bundle_file, std::size_t index_count,
+                               std::size_t file_size_bytes, std::size_t first_mesh_index,
+                               std::size_t last_mesh_index, double write_wall_seconds,
+                               double write_cpu_seconds);
 
  private:
   const DatasetMeshListing& listing_;

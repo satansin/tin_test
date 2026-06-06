@@ -1,5 +1,6 @@
 #include "tin_gen/mesh_helper.hpp"
 
+#include "tin_gen/cpu_timer.hpp"
 #include "tin_gen/ply_merge.hpp"
 #include "tin_gen/tin_mesh.hpp"
 
@@ -366,9 +367,8 @@ void report_folder_mesh_load_progress(const std::size_t count, const std::size_t
                                       const std::string_view label,
                                       const std::string_view bundle,
                                       const std::string_view verb) {
-  std::cout << std::fixed << std::setprecision(6);
-  std::cout << label << ": " << verb << ' ' << count << '/' << total << "  elapsed "
-            << elapsed_seconds << " s";
+  std::cout << label << ": " << verb << ' ' << count << '/' << total << "  elapsed ";
+  append_formatted_elapsed_seconds(std::cout, elapsed_seconds);
   if (!bundle.empty()) {
     std::cout << "  bundle " << bundle;
   }
@@ -418,8 +418,12 @@ void DatasetMeshLoadProgress::on_bundle_loaded(const std::string_view bundle_fil
   } else {
     std::cout << std::setprecision(2) << (bytes / 1e6) << " MB";
   }
-  std::cout << std::setprecision(6) << ")  bundle read " << read_wall_seconds << " s  CPU "
-            << read_cpu_seconds << " s  elapsed " << elapsed << " s";
+  std::cout << std::setprecision(6) << ")  bundle read ";
+  append_formatted_elapsed_seconds(std::cout, read_wall_seconds);
+  std::cout << "  CPU ";
+  append_formatted_elapsed_seconds(std::cout, read_cpu_seconds);
+  std::cout << "  elapsed ";
+  append_formatted_elapsed_seconds(std::cout, elapsed);
   append_resident_memory(std::cout);
   std::cout << '\n';
 
@@ -436,6 +440,36 @@ void DatasetMeshLoadProgress::on_bundle_extracted(const std::string_view bundle_
                                                   const std::size_t last_mesh_index) {
   std::cout << label_ << ": finished bundle " << bundle_file << ", released bundle memory (meshes "
             << (last_mesh_index + 1) << '/' << total_ << ")\n" << std::flush;
+}
+
+void DatasetMeshLoadProgress::on_index_bundle_written(const std::string_view bundle_file,
+                                                      const std::size_t index_count,
+                                                      const std::size_t file_size_bytes,
+                                                      const std::size_t first_mesh_index,
+                                                      const std::size_t last_mesh_index,
+                                                      const double write_wall_seconds,
+                                                      const double write_cpu_seconds) {
+  const double elapsed = elapsed_seconds_since(start_);
+  std::cout << std::fixed;
+  std::cout << label_ << ": wrote " << bundle_file << " (" << index_count << " indexes, ";
+  const double bytes = static_cast<double>(file_size_bytes);
+  if (bytes >= 1e9) {
+    std::cout << std::setprecision(2) << (bytes / 1e9) << " GB";
+  } else {
+    std::cout << std::setprecision(2) << (bytes / 1e6) << " MB";
+  }
+  std::cout << std::setprecision(6) << ")  meshes " << (first_mesh_index + 1);
+  if (last_mesh_index != first_mesh_index) {
+    std::cout << '-' << (last_mesh_index + 1);
+  }
+  std::cout << '/' << total_ << "  write ";
+  append_formatted_elapsed_seconds(std::cout, write_wall_seconds);
+  std::cout << "  CPU ";
+  append_formatted_elapsed_seconds(std::cout, write_cpu_seconds);
+  std::cout << "  elapsed ";
+  append_formatted_elapsed_seconds(std::cout, elapsed);
+  append_resident_memory(std::cout);
+  std::cout << '\n' << std::flush;
 }
 
 void DatasetMeshLoadProgress::mark_loaded(const std::size_t loaded) {

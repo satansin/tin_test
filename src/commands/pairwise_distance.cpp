@@ -189,7 +189,7 @@ class PairwiseMatrixProgress {
       return 1;
     }
     const std::size_t tenth = (total_pairs + 9) / 10;
-    return std::min(kFolderMeshLoadProgressInterval, std::max<std::size_t>(1, tenth));
+    return std::min(kPairwiseMatrixProgressIntervalMax, std::max<std::size_t>(1, tenth));
   }
 
   std::size_t total_pairs_ = 0;

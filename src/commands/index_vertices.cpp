@@ -64,10 +64,11 @@ void accumulate_save_timing(TimingTotals& totals, const CpuTimer& cpu, const Wal
 
 void print_timing_totals(const std::string_view label, const double cpu_seconds,
                          const double wall_seconds) {
-  std::cout << std::fixed << std::setprecision(6);
-  std::cout << label << " timing:\n"
-            << "  CPU time: " << cpu_seconds << " s\n"
-            << "  Wall time: " << wall_seconds << " s\n";
+  std::cout << label << " timing:\n  CPU time: ";
+  append_formatted_elapsed_seconds(std::cout, cpu_seconds);
+  std::cout << "\n  Wall time: ";
+  append_formatted_elapsed_seconds(std::cout, wall_seconds);
+  std::cout << '\n';
 }
 
 struct IndexOutputSink {
@@ -138,6 +139,21 @@ void finalize_output(const IndexVerticesConfig& config, IndexOutputSink& sink,
   accumulate_save_timing(timings, cpu_save, wall_save);
 }
 
+void attach_index_bundle_progress(IndexOutputSink& sink, DatasetMeshLoadProgress& progress) {
+  const IndexBundleWrittenCallback callback =
+      [&progress](const IndexBundleWrittenInfo& info) {
+        progress.on_index_bundle_written(info.bundle_file, info.index_count, info.file_size_bytes,
+                                         info.first_mesh_index, info.last_mesh_index,
+                                         info.write_wall_seconds, info.write_cpu_seconds);
+      };
+  if (sink.rs_writer) {
+    sink.rs_writer->set_bundle_written_callback(callback);
+  }
+  if (sink.kd_writer) {
+    sink.kd_writer->set_bundle_written_callback(callback);
+  }
+}
+
 void process_pack_meshes(const IndexVerticesConfig& config, const IndexVerticesLabels& labels,
                          const fs::path& input_dir, const fs::path& manifest_path,
                          DatasetMeshListing& listing, IndexOutputSink& sink,
@@ -147,6 +163,7 @@ void process_pack_meshes(const IndexVerticesConfig& config, const IndexVerticesL
   listing = reader.make_listing(input_dir);
 
   DatasetMeshLoadProgress progress(listing, load_label, "built");
+  attach_index_bundle_progress(sink, progress);
   reader.set_bundle_loaded_callback([&progress](const PackBundleLoadedInfo& info) {
     progress.on_bundle_loaded(info.bundle_file, info.size_bytes, info.read_wall_seconds,
                               info.read_cpu_seconds, info.mesh_index);
@@ -197,6 +214,7 @@ void process_per_file_meshes(const IndexVerticesConfig& config, const IndexVerti
                                               labels.command);
 
   DatasetMeshLoadProgress progress(listing, load_label, "built");
+  attach_index_bundle_progress(sink, progress);
   mesh_count = listing.paths.size();
 
   for (std::size_t i = 0; i < mesh_count; ++i) {

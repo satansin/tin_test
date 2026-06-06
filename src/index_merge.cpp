@@ -1,5 +1,7 @@
 #include "tin_gen/index_merge.hpp"
 
+#include "tin_gen/cpu_timer.hpp"
+
 #include <cstdio>
 #include <fstream>
 #include <stdexcept>
@@ -181,6 +183,26 @@ std::vector<std::pair<std::uint64_t, std::uint64_t>> read_bundle_toc_offsets(
   return toc;
 }
 
+void notify_index_bundle_written(const IndexBundleWrittenCallback& callback,
+                                 const std::string& bundle_file,
+                                 const std::vector<std::size_t>& pending_mesh_indices,
+                                 const fs::path& bundle_path, const double write_wall_seconds,
+                                 const double write_cpu_seconds) {
+  if (!callback || pending_mesh_indices.empty()) {
+    return;
+  }
+
+  IndexBundleWrittenInfo info;
+  info.bundle_file = bundle_file;
+  info.index_count = pending_mesh_indices.size();
+  info.file_size_bytes = static_cast<std::size_t>(fs::file_size(bundle_path));
+  info.first_mesh_index = pending_mesh_indices.front();
+  info.last_mesh_index = pending_mesh_indices.back();
+  info.write_wall_seconds = write_wall_seconds;
+  info.write_cpu_seconds = write_cpu_seconds;
+  callback(info);
+}
+
 }  // namespace
 
 std::optional<fs::path> find_rs_index_merge_manifest(const fs::path& dir) {
@@ -224,6 +246,10 @@ RsIndexMergeWriter::RsIndexMergeWriter(const fs::path output_dir, const fs::path
   fs::create_directories(output_dir_);
 }
 
+void RsIndexMergeWriter::set_bundle_written_callback(const IndexBundleWrittenCallback callback) {
+  bundle_written_callback_ = std::move(callback);
+}
+
 void RsIndexMergeWriter::add(const std::size_t mesh_index, std::string mesh_name, RsTree3d tree) {
   batch_.push_back(RsTreeBundleEntry{std::move(mesh_name), std::move(tree)});
   pending_mesh_indices_.push_back(mesh_index);
@@ -240,7 +266,13 @@ void RsIndexMergeWriter::flush_batch() {
 
   const std::string bundle_file = bundle_filename(bundle_index_, kRsMergeBundleExtension);
   const fs::path bundle_path = output_dir_ / bundle_file;
+  CpuTimer cpu;
+  WallTimer wall;
+  cpu.start();
+  wall.start();
   save_rs_tree_bundle(bundle_path.string(), batch_);
+  cpu.stop();
+  wall.stop();
 
   const std::vector<std::pair<std::uint64_t, std::uint64_t>> toc =
       read_bundle_toc_offsets(bundle_path);
@@ -257,6 +289,9 @@ void RsIndexMergeWriter::flush_batch() {
     entry.size_bytes = toc[i].second;
     manifest_entries_.push_back(std::move(entry));
   }
+
+  notify_index_bundle_written(bundle_written_callback_, bundle_file, pending_mesh_indices_,
+                              bundle_path, wall.elapsed_seconds(), cpu.elapsed_seconds());
 
   batch_.clear();
   pending_mesh_indices_.clear();
@@ -288,6 +323,10 @@ KdIndexMergeWriter::KdIndexMergeWriter(const fs::path output_dir, const fs::path
   fs::create_directories(output_dir_);
 }
 
+void KdIndexMergeWriter::set_bundle_written_callback(const IndexBundleWrittenCallback callback) {
+  bundle_written_callback_ = std::move(callback);
+}
+
 void KdIndexMergeWriter::add(const std::size_t mesh_index, std::string mesh_name, KdTree3d tree) {
   batch_.push_back(KdTreeBundleEntry{std::move(mesh_name), std::move(tree)});
   pending_mesh_indices_.push_back(mesh_index);
@@ -304,7 +343,13 @@ void KdIndexMergeWriter::flush_batch() {
 
   const std::string bundle_file = bundle_filename(bundle_index_, kKdMergeBundleExtension);
   const fs::path bundle_path = output_dir_ / bundle_file;
+  CpuTimer cpu;
+  WallTimer wall;
+  cpu.start();
+  wall.start();
   save_kd_tree_bundle(bundle_path.string(), batch_);
+  cpu.stop();
+  wall.stop();
 
   const std::vector<std::pair<std::uint64_t, std::uint64_t>> toc =
       read_bundle_toc_offsets(bundle_path);
@@ -321,6 +366,9 @@ void KdIndexMergeWriter::flush_batch() {
     entry.size_bytes = toc[i].second;
     manifest_entries_.push_back(std::move(entry));
   }
+
+  notify_index_bundle_written(bundle_written_callback_, bundle_file, pending_mesh_indices_,
+                              bundle_path, wall.elapsed_seconds(), cpu.elapsed_seconds());
 
   batch_.clear();
   pending_mesh_indices_.clear();

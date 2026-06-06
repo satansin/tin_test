@@ -131,8 +131,11 @@ void PlyMergeDatasetReader::report_bundle_loaded(const PackBundleLoadedInfo& inf
   } else {
     std::cout << std::setprecision(2) << (bytes / 1e6) << " MB";
   }
-  std::cout << std::setprecision(6) << ")  bundle read " << info.read_wall_seconds << " s  CPU "
-            << info.read_cpu_seconds << " s\n"
+  std::cout << std::setprecision(6) << ")  bundle read ";
+  append_formatted_elapsed_seconds(std::cout, info.read_wall_seconds);
+  std::cout << "  CPU ";
+  append_formatted_elapsed_seconds(std::cout, info.read_cpu_seconds);
+  std::cout << '\n'
             << std::flush;
 }
 

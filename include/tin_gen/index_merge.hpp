@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -47,12 +48,25 @@ struct IndexMergeManifest {
 [[nodiscard]] IndexMergeManifest load_kd_index_merge_manifest(
     const std::filesystem::path& manifest_path);
 
+struct IndexBundleWrittenInfo {
+  std::string bundle_file;
+  std::size_t index_count = 0;
+  std::size_t file_size_bytes = 0;
+  std::size_t first_mesh_index = 0;  // 0-based
+  std::size_t last_mesh_index = 0;
+  double write_wall_seconds = 0.0;
+  double write_cpu_seconds = 0.0;
+};
+
+using IndexBundleWrittenCallback = std::function<void(const IndexBundleWrittenInfo&)>;
+
 /// Writes up to @p max_indexes_per_bundle trees per `merged_NNN.tinrs` plus a manifest.
 class RsIndexMergeWriter {
  public:
   RsIndexMergeWriter(std::filesystem::path output_dir, std::filesystem::path source_dir,
                      std::size_t max_indexes_per_bundle = kDefaultMaxIndexesPerBundle);
 
+  void set_bundle_written_callback(IndexBundleWrittenCallback callback);
   void add(std::size_t mesh_index, std::string mesh_name, RsTree3d tree);
   void finish();
 
@@ -71,6 +85,7 @@ class RsIndexMergeWriter {
   std::vector<IndexMergeEntry> manifest_entries_;
   std::vector<RsTreeBundleEntry> batch_;
   std::vector<std::size_t> pending_mesh_indices_;
+  IndexBundleWrittenCallback bundle_written_callback_;
 };
 
 /// Writes up to @p max_indexes_per_bundle trees per `merged_NNN.tinkd` plus a manifest.
@@ -79,6 +94,7 @@ class KdIndexMergeWriter {
   KdIndexMergeWriter(std::filesystem::path output_dir, std::filesystem::path source_dir,
                      std::size_t max_indexes_per_bundle = kDefaultMaxIndexesPerBundle);
 
+  void set_bundle_written_callback(IndexBundleWrittenCallback callback);
   void add(std::size_t mesh_index, std::string mesh_name, KdTree3d tree);
   void finish();
 
@@ -97,6 +113,7 @@ class KdIndexMergeWriter {
   std::vector<IndexMergeEntry> manifest_entries_;
   std::vector<KdTreeBundleEntry> batch_;
   std::vector<std::size_t> pending_mesh_indices_;
+  IndexBundleWrittenCallback bundle_written_callback_;
 };
 
 }  // namespace tin_gen

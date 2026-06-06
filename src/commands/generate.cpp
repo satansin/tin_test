@@ -16,8 +16,11 @@ int run_generate(const GenerationConfig& config) {
   generate_and_save_objects(config);
   cpu_timer.stop();
   wall_timer.stop();
-  std::cout << "generate CPU time: " << cpu_timer.elapsed_seconds() << " s\n";
-  std::cout << "generate wall time: " << wall_timer.elapsed_seconds() << " s\n";
+  std::cout << "generate CPU time: ";
+  append_formatted_elapsed_seconds(std::cout, cpu_timer.elapsed_seconds());
+  std::cout << "\ngenerate wall time: ";
+  append_formatted_elapsed_seconds(std::cout, wall_timer.elapsed_seconds());
+  std::cout << '\n';
 
   if (!config.quiet) {
     std::cout << "Generated " << config.num_objects << " TIN(s) as "

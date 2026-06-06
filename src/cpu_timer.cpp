@@ -3,7 +3,9 @@
 #include <ctime>
 #include <iomanip>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
+#include <string>
 
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
@@ -77,7 +79,76 @@ std::int64_t cpu_time_nanoseconds() {
 #endif
 }
 
+constexpr int kSecondsPrecision = 4;
+constexpr int kSubSecondPrecision = 9;
+
+int sub_minute_seconds_precision(const double total_seconds) {
+  return total_seconds < 1.0 ? kSubSecondPrecision : kSecondsPrecision;
+}
+
+void append_seconds_value(std::ostream& out, const double seconds, const int precision) {
+  std::ostringstream buf;
+  buf << std::fixed << std::setprecision(precision) << seconds;
+  std::string text = buf.str();
+  if (precision > kSecondsPrecision) {
+    if (const std::size_t dot = text.find('.'); dot != std::string::npos) {
+      while (text.size() > dot + 1 && text.back() == '0') {
+        text.pop_back();
+      }
+    }
+  }
+  out << text;
+}
+
 }  // namespace
+
+void append_formatted_elapsed_seconds(std::ostream& out, const double total_seconds) {
+  double t = total_seconds < 0.0 ? 0.0 : total_seconds;
+
+  constexpr double kSecPerMin = 60.0;
+  constexpr double kSecPerHour = 3600.0;
+  constexpr double kSecPerDay = 86400.0;
+
+  if (t < kSecPerMin) {
+    append_seconds_value(out, t, sub_minute_seconds_precision(t));
+    out << " s";
+    return;
+  }
+  if (t < kSecPerHour) {
+    const auto minutes = static_cast<long long>(t / kSecPerMin);
+    const double seconds = t - static_cast<double>(minutes) * kSecPerMin;
+    out << minutes << " m ";
+    append_seconds_value(out, seconds, kSecondsPrecision);
+    out << " s";
+    return;
+  }
+  if (t < kSecPerDay) {
+    const auto hours = static_cast<long long>(t / kSecPerHour);
+    t -= static_cast<double>(hours) * kSecPerHour;
+    const auto minutes = static_cast<long long>(t / kSecPerMin);
+    const double seconds = t - static_cast<double>(minutes) * kSecPerMin;
+    out << hours << " h " << minutes << " m ";
+    append_seconds_value(out, seconds, kSecondsPrecision);
+    out << " s";
+    return;
+  }
+
+  const auto days = static_cast<long long>(t / kSecPerDay);
+  t -= static_cast<double>(days) * kSecPerDay;
+  const auto hours = static_cast<long long>(t / kSecPerHour);
+  t -= static_cast<double>(hours) * kSecPerHour;
+  const auto minutes = static_cast<long long>(t / kSecPerMin);
+  const double seconds = t - static_cast<double>(minutes) * kSecPerMin;
+  out << days << " d " << hours << " h " << minutes << " m ";
+  append_seconds_value(out, seconds, kSecondsPrecision);
+  out << " s";
+}
+
+std::string format_elapsed_seconds(const double total_seconds) {
+  std::ostringstream out;
+  append_formatted_elapsed_seconds(out, total_seconds);
+  return out.str();
+}
 
 void WallTimer::start() {
   start_ns_ = wall_time_nanoseconds();
@@ -141,10 +212,11 @@ double CpuTimer::elapsed_milliseconds() const {
 
 void print_cpu_wall_timing(const std::string_view label, const CpuTimer& cpu,
                            const WallTimer& wall) {
-  std::cout << std::fixed << std::setprecision(6);
-  std::cout << label << " timing:\n"
-            << "  CPU time: " << cpu.elapsed_seconds() << " s\n"
-            << "  Wall time: " << wall.elapsed_seconds() << " s\n";
+  std::cout << label << " timing:\n  CPU time: ";
+  append_formatted_elapsed_seconds(std::cout, cpu.elapsed_seconds());
+  std::cout << "\n  Wall time: ";
+  append_formatted_elapsed_seconds(std::cout, wall.elapsed_seconds());
+  std::cout << '\n';
 }
 
 CpuTimerReport::CpuTimerReport(std::string label) : label_(std::move(label)) { timer_.start(); }
@@ -156,8 +228,9 @@ CpuTimerReport::~CpuTimerReport() {
   if (timer_.is_running()) {
     timer_.stop();
   }
-  std::cout << std::fixed << std::setprecision(6);
-  std::cout << label_ << " CPU time: " << timer_.elapsed_seconds() << " s\n";
+  std::cout << label_ << " CPU time: ";
+  append_formatted_elapsed_seconds(std::cout, timer_.elapsed_seconds());
+  std::cout << '\n';
 }
 
 CpuTimer& CpuTimerReport::timer() { return timer_; }

@@ -81,7 +81,10 @@ int run_distance_vertex_compare(const DistanceConfig& config) {
 
   const double kd_total = cpu_kd_build.elapsed_seconds() + cpu_kd_compute.elapsed_seconds();
   const double rs_total = cpu_rs_build.elapsed_seconds() + cpu_rs_compute.elapsed_seconds();
-  std::cout << "  total CPU (build+compute): kd " << kd_total << " s, rs " << rs_total << " s";
+  std::cout << "  total CPU (build+compute): kd ";
+  append_formatted_elapsed_seconds(std::cout, kd_total);
+  std::cout << ", rs ";
+  append_formatted_elapsed_seconds(std::cout, rs_total);
   if (kd_total > 0.0) {
     std::cout << "  (rs/kd = " << (rs_total / kd_total) << "x)";
   }
