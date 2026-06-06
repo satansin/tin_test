@@ -212,7 +212,7 @@ Counts and formats for the four real-world datasets used in experiments. Folder 
 | ModelNet40 | PLY | 9,449 | Zero-mean translation only (no scaling) |
 | ModelNet40_auto_aligned | PLY | 12,311 | |
 | ModelNet40_manually_aligned | PLY | 12,311 | |
-| ShapeNetCore | PLY | 51,176 | |
+| ShapeNetCore | PLY | 51,176 | TODO: some files corrupted |
 
 | Script | Input | Output |
 |--------|--------|--------|
