@@ -7,6 +7,7 @@
 #include "tin_gen/commands/point_sample.hpp"
 #include "tin_gen/commands/normalize.hpp"
 #include "tin_gen/commands/compress.hpp"
+#include "tin_gen/commands/validate.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -57,6 +58,9 @@ AppCommand parse_app_command(const std::string_view name) {
       normalized == "pd") {
     return AppCommand::PairwiseDistance;
   }
+  if (normalized == "validate" || normalized == "check") {
+    return AppCommand::Validate;
+  }
   throw std::invalid_argument("Unknown command: " + std::string(name));
 }
 
@@ -78,6 +82,8 @@ std::string_view app_command_name(const AppCommand command) {
       return "ptsample";
     case AppCommand::PairwiseDistance:
       return "pairwise_distance";
+    case AppCommand::Validate:
+      return "validate";
   }
   return "generate";
 }
@@ -93,8 +99,9 @@ void print_usage(const char* program) {
             << "  distance (dist)    Dissimilarity between two PLY meshes\n"
             << "  ptsample            Sample points across TIN faces in a folder\n"
             << "  pairwise_distance (pd)  All pairwise dissimilarities in a folder\n"
+            << "  validate (check)        Check meshes in a folder for invalid faces/vertices\n"
             << "  help                    Show this help\n\n"
-            << "Command aliases: gen, norm, pack, kd, rs, dist, ptsample, pd\n\n"
+            << "Command aliases: gen, norm, pack, kd, rs, dist, ptsample, pd, check\n\n"
             << "Generate options:\n"
             << "  --format FORMAT     Output mesh format: ply | obj (default: ply)\n"
             << "  -o, --output-dir DIR   Output directory (required)\n"
@@ -137,6 +144,10 @@ void print_usage(const char* program) {
             << "  --max-objects N        Use at most N meshes (default: all)\n"
             << "  --rs-dir DIR, -rs DIR  Use prebuilt <stem>.rstree files for NN search (default index)\n"
             << "  --kd-dir DIR, -kd DIR  Use prebuilt <stem>.kdtree files for NN search\n\n"
+            << "Validate options:\n"
+            << "  -i, --input-dir DIR    Folder or pack directory to check (required)\n"
+            << "  -o, --report PATH      Optional TSV report of invalid meshes\n"
+            << "  --max-objects N        Check at most N meshes (default: all)\n\n"
             << "Examples:\n"
             << "  " << program << " gen --format obj --output-dir output/example_obj\n"
             << "  " << program << " gen --seed 42 --num-objects 5 --output-dir output/example\n"
@@ -148,7 +159,9 @@ void print_usage(const char* program) {
             << "  " << program << " ptsample -i output/normalized "
             << "-o output/samples -n 10000 --seed 42\n"
             << "  " << program << " pd --input-dir output/normalized "
-            << "--output output/pairwise_distances_vertex.txt\n";
+            << "--output output/pairwise_distances_vertex.txt\n"
+            << "  " << program << " validate -i output/normalized "
+            << "-o output/validate_report.tsv\n";
 }
 
 std::optional<AppRequest> parse_app_request(const int argc, char* argv[]) {
@@ -232,6 +245,13 @@ std::optional<AppRequest> parse_app_request(const int argc, char* argv[]) {
       return std::nullopt;
     }
     request.pairwise_distance_config = *config;
+  } else if (request.command == AppCommand::Validate) {
+    const auto config = parse_validate_config(argc - option_start, argv + option_start);
+    if (!config) {
+      print_usage(argv[0]);
+      return std::nullopt;
+    }
+    request.validate_config = *config;
   }
   return request;
 }
@@ -253,6 +273,8 @@ int run_app(const AppRequest& request) {
       return run_point_sample(request.point_sample_config);
     case AppCommand::PairwiseDistance:
       return run_pairwise_distance(request.pairwise_distance_config);
+    case AppCommand::Validate:
+      return run_validate(request.validate_config);
   }
   throw std::logic_error("Unhandled app command.");
 }

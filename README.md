@@ -148,7 +148,7 @@ Concatenates per-mesh `.ply` files into bundle files (`.tinply`, default max **5
 
 C++ API: `write_ply_merge()`, `load_ply_merge_manifest()`, `read_ply_from_merge()` in `include/tin_gen/ply_merge.hpp`.
 
-Folder commands (`normalize`, `compress`, `kd`, `rs`, `ptsample`, `pairwise_distance`) list every matching mesh file in the input directory (`.ply` by default), sorted by numeric `name_NUMBER` suffix when present (`object_1`, `object_2`, …, `object_10`), otherwise lexicographic by filename. A `metadata.txt` file in the folder is ignored.
+Folder commands (`normalize`, `compress`, `kd`, `rs`, `ptsample`, `validate`, `pairwise_distance`) list every matching mesh file in the input directory (`.ply` by default), sorted by numeric `name_NUMBER` suffix when present (`object_1`, `object_2`, …, `object_10`), otherwise lexicographic by filename. A `metadata.txt` file in the folder is ignored.
 
 ### Index build options (`kd` / `rs`)
 
@@ -218,6 +218,25 @@ Use `--pack` to write sampled PLY meshes directly into `.tinply` bundles and
 Packed output is PLY-only. The default maximum is 5000 meshes per bundle; use
 `--max-meshes-per-bundle N` to change it.
 
+### Validate
+
+`validate` (alias `check`) scans every mesh in an input folder (or pack) and
+reports problems that break face sampling: unreadable PLY files, empty meshes,
+faces with out-of-range vertex indices, and meshes with no non-degenerate faces.
+It continues after failures and exits non-zero if any mesh is invalid.
+
+```bash
+./build/release/tin_test validate \
+  --input-dir ../tin_exp/real_ShapeNetCore/norm \
+  --report ../tin_exp/real_ShapeNetCore/validate_report.tsv
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-i, --input-dir DIR` | (required) | Folder or pack directory to check |
+| `-o, --report PATH` | none | Optional TSV report (`mesh` + `reason`) |
+| `--max-objects N` | all | Check at most N meshes |
+
 ### Pairwise_distance
 
 Compute all pairwise dissimilarities for `.ply` files in a folder (same `--algorithm` as `distance`, default `vertex`). Mesh order matches `normalize` / `rs` (see above). Matrix entry `(i, j)` is the distance between object `i` and object `j` (0-based indices).
@@ -237,7 +256,7 @@ space-separated values.
 
 With `--rs-dir` (or `-rs`), R*-trees are loaded from that folder: if `rs_merge_manifest.txt` exists (`rs --combined`), trees are read from split `merged_*.tinrs` bundles; otherwise each `object_N.rstree` is loaded separately. Without `--rs-dir`, in-memory R*-trees are built before the matrix; console output includes separate timing for **rs build** / **rs load** and **matrix** computation. Use `--kd-dir` (or `-kd`) to load KD-trees instead (`--rs-dir` and `--kd-dir` are mutually exclusive).
 
-Command aliases: `gen` (generate), `norm` (normalize), `kd` (kdvertices), `rs`, `dist` (distance), `pd` (pairwise_distance).
+Command aliases: `gen` (generate), `norm` (normalize), `kd` (kdvertices), `rs`, `dist` (distance), `pd` (pairwise_distance), `check` (validate).
 
 ## Experiment dataset scripts (`../tin_exp/`)
 

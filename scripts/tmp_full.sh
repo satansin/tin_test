@@ -21,6 +21,10 @@ mkdir -p "${DATASET}/norm"
   --input-dir "${RAW}" \
   --output-dir "${DATASET}/norm"
 
+"${BIN}" validate \
+  --input-dir "${DATASET}/norm" \
+  --report "${DATASET}/validate_report.tsv"
+
 "${BIN}" compress \
   --input-dir "${DATASET}/norm" \
   --output-dir "${DATASET}/norm_pack"

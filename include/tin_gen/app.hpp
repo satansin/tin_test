@@ -14,7 +14,8 @@ enum class AppCommand {
   Rs,
   Distance,
   PointSample,
-  PairwiseDistance
+  PairwiseDistance,
+  Validate
 };
 
 struct AppRequest {
@@ -26,6 +27,7 @@ struct AppRequest {
   DistanceConfig distance_config;
   PointSampleConfig point_sample_config;
   PairwiseDistanceConfig pairwise_distance_config;
+  ValidateConfig validate_config;
 };
 
 [[nodiscard]] AppCommand parse_app_command(std::string_view name);

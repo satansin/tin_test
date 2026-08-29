@@ -303,4 +303,31 @@ std::optional<PairwiseDistanceConfig> parse_pairwise_distance_config(const int a
   return config;
 }
 
+std::optional<ValidateConfig> parse_validate_config(const int argc, char* argv[]) {
+  ValidateConfig config;
+
+  for (int i = 0; i < argc; ++i) {
+    const std::string arg = argv[i];
+
+    if (is_help_flag(arg)) {
+      return std::nullopt;
+    }
+    if (arg == "--input-dir" || arg == "-i") {
+      config.input_dir = need_arg_value(argc, argv, i, arg.c_str());
+    } else if (arg == "--report" || arg == "--output" || arg == "-o") {
+      config.report_path = need_arg_value(argc, argv, i, arg.c_str());
+    } else if (arg == "--max-objects" || arg == "--limit") {
+      config.max_objects =
+          static_cast<std::size_t>(std::stoull(need_arg_value(argc, argv, i, arg.c_str())));
+    } else if (accepts_positional_input_dir(arg, config.input_dir)) {
+      config.input_dir = arg;
+    } else {
+      throw std::runtime_error("Unknown argument: " + arg);
+    }
+  }
+
+  require_input_dir(config.input_dir, "validate");
+  return config;
+}
+
 }  // namespace tin_gen

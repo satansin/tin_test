@@ -101,4 +101,13 @@ struct PairwiseDistanceConfig {
 [[nodiscard]] std::optional<PairwiseDistanceConfig> parse_pairwise_distance_config(int argc,
                                                                                    char* argv[]);
 
+struct ValidateConfig {
+  std::string input_dir;
+  std::string report_path;   // optional; empty = no report file
+  std::size_t max_objects = 0;  // 0 = all
+};
+
+/// Parse options for the validate command. Returns nullopt on -h/--help.
+[[nodiscard]] std::optional<ValidateConfig> parse_validate_config(int argc, char* argv[]);
+
 }  // namespace tin_gen

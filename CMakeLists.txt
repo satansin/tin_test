@@ -45,6 +45,7 @@ add_library(tin_gen
   src/commands/distance.cpp
   src/commands/pairwise_distance.cpp
   src/commands/point_sample.cpp
+  src/commands/validate.cpp
   src/kd_tree.cpp
   src/rs_tree.cpp
   src/ply_merge.cpp
