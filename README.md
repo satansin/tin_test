@@ -83,18 +83,26 @@ No arguments prints usage.
 
 ```bash
 ./build/release/tin_test
-./build/release/tin_test generate
-./build/release/tin_test generate --format obj --seed 42 --num-objects 5
-./build/release/tin_test normalize --input-dir sample_gen
+./scripts/run_samples.sh
+./build/release/tin_test generate --output-dir output_synthetic/example
+./build/release/tin_test generate --format obj --seed 42 --num-objects 5 \
+  --output-dir output_synthetic/example_obj
+./build/release/tin_test normalize --input-dir output_synthetic/example \
+  --output-dir output_synthetic/example_normalized
+./build/release/tin_test ptsample -i output_synthetic/example_normalized \
+  -o output_synthetic/example_samples -n 10000 --seed 42
 ./build/release/tin_test help
 ```
+
+The sample-specific `sample_*` paths are held by
+`scripts/run_samples.sh`; the CLI requires explicit output paths.
 
 ### Generate options
 
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--format FORMAT` | `ply` | `ply` or `obj` |
-| `-o, --output-dir DIR` | `sample_gen` | Output directory |
+| `-o, --output-dir DIR` | (required) | Output directory |
 | `--num-objects N` | `10` | Number of meshes |
 | `--num-vertices-per-object N` | `200` | Exact hull vertex count per mesh |
 | `--scale VALUE` | `1.0` | Coordinate scale |
@@ -119,7 +127,7 @@ Translates each mesh so the vertex mean is at the origin (subtracts the per-mesh
 | Flag | Default | Description |
 |------|---------|-------------|
 | `-i, --input-dir DIR` | (required) | Folder containing `.ply` files |
-| `-o, --output-dir DIR` | `sample_normalized` | Output folder for normalized `.ply` files |
+| `-o, --output-dir DIR` | (required) | Output folder for normalized `.ply` files |
 | `--max-objects N` | all | Normalize at most N meshes |
 
 ### Compress (PLY merge)
@@ -129,18 +137,18 @@ Concatenates per-mesh `.ply` files into bundle files (`.tinply`, default max **5
 | Flag | Default | Description |
 |------|---------|-------------|
 | `-i, --input-dir DIR` | (required) | Folder containing `.ply` files |
-| `-o, --output-dir DIR` | `sample_pack` | Output folder for bundles + manifest |
+| `-o, --output-dir DIR` | (required) | Output folder for bundles + manifest |
 | `--max-meshes-per-bundle N` | `5000` | Start a new bundle after N meshes |
 | `--max-objects N` | all | Merge at most N meshes |
 
 ```bash
-./build/release/tin_test compress -i ../tin_exp/datasets_norm/ShapeNetCore \
-  -o ../tin_exp/datasets_norm_pack/ShapeNetCore
+./build/release/tin_test compress -i ../tin_exp/real_First100_ShapeNetCore/norm \
+  -o ../tin_exp/real_First100_ShapeNetCore/norm_pack
 ```
 
 C++ API: `write_ply_merge()`, `load_ply_merge_manifest()`, `read_ply_from_merge()` in `include/tin_gen/ply_merge.hpp`.
 
-Folder commands (`normalize`, `compress`, `kd`, `rs`, `pairwise_distance`) list every matching mesh file in the input directory (`.ply` by default), sorted by numeric `name_NUMBER` suffix when present (`object_1`, `object_2`, …, `object_10`), otherwise lexicographic by filename. A `metadata.txt` file in the folder is ignored.
+Folder commands (`normalize`, `compress`, `kd`, `rs`, `ptsample`, `pairwise_distance`) list every matching mesh file in the input directory (`.ply` by default), sorted by numeric `name_NUMBER` suffix when present (`object_1`, `object_2`, …, `object_10`), otherwise lexicographic by filename. A `metadata.txt` file in the folder is ignored.
 
 ### Index build options (`kd` / `rs`)
 
@@ -149,7 +157,7 @@ Both commands share the same flags; defaults depend on the command.
 | Flag | `kd` default | `rs` default | Description |
 |------|--------------|--------------|-------------|
 | `-i, --input-dir DIR` | (required) | (required) | Folder containing `.ply` files |
-| `-o, --output-dir DIR` | `sample_kdvertices` | `sample_rsvertices` | Output directory |
+| `-o, --output-dir DIR` | (required) | (required) | Output directory |
 | `--max-objects N` | all | all | Process at most N meshes |
 | `--combined` | off | off | Write split bundles + manifest (5000 indexes per `merged_NNN` file) |
 
@@ -158,8 +166,10 @@ Both commands share the same flags; defaults depend on the command.
 **`kd`** builds a **KD-tree** index. Each `object_N.ply` → `object_N.kdtree` (`TINKDV1`), or with `--combined`: `merged_000.tinkd`, … plus `kd_merge_manifest.txt`.
 
 ```bash
-./build/release/tin_test rs --input-dir sample_normalized --combined
-./build/release/tin_test kd --input-dir sample_normalized --combined
+./build/release/tin_test rs --input-dir sample_normalized \
+  --output-dir sample_rsvertices --combined
+./build/release/tin_test kd --input-dir sample_normalized \
+  --output-dir sample_kdvertices --combined
 ```
 
 ### Distance
@@ -179,17 +189,50 @@ Dissimilarity between two PLY meshes. Select the algorithm with `--algorithm` (d
 
 Core API: `symmetric_vertex_distance()` in `include/tin_gen/vertex_distance.hpp`.
 
+### Point sampling
+
+`ptsample` samples points uniformly over the surfaces of all PLY meshes in an
+input folder. The requested total number of points is written per mesh to the
+output folder as point-cloud PLY files by default; `--format obj` is also
+supported. Faces are selected proportionally to area and each selected face is
+sampled uniformly using barycentric coordinates.
+
+```bash
+./build/release/tin_test ptsample \
+  --input-dir sample_normalized \
+  --output-dir sample_points \
+  --num-points 10000 --seed 42
+```
+
+The input directory, output directory, and `--num-points` are required.
+Use `--pack` to write sampled PLY meshes directly into `.tinply` bundles and
+`ply_merge_manifest.txt`, without creating one output PLY file per mesh:
+
+```bash
+./build/release/tin_test ptsample \
+  --input-dir sample_normalized \
+  --output-dir sample_points_pack \
+  --num-points 10000 --seed 42 --pack
+```
+
+Packed output is PLY-only. The default maximum is 5000 meshes per bundle; use
+`--max-meshes-per-bundle N` to change it.
+
 ### Pairwise_distance
 
 Compute all pairwise dissimilarities for `.ply` files in a folder (same `--algorithm` as `distance`, default `vertex`). Mesh order matches `normalize` / `rs` (see above). Matrix entry `(i, j)` is the distance between object `i` and object `j` (0-based indices).
 
-Default output: `sample_pd/pairwise_distances_<algorithm>.txt` (e.g. `pairwise_distances_vertex.txt`) — comment header lists object order, then `n`, then `n` rows of `n` space-separated values.
+The output path is required. A sample default is
+`sample_pd/pairwise_distances_<algorithm>.txt` (e.g.
+`pairwise_distances_vertex.txt`), supplied by `scripts/run_samples.sh`.
+The comment header lists object order, then `n`, then `n` rows of `n`
+space-separated values.
 
 ```bash
-./build/release/tin_test pairwise_distance --input-dir sample_normalized
 ./build/release/tin_test pairwise_distance -i sample_normalized -o sample_pd/pairwise_distances_vertex.txt
 ./build/release/tin_test rs --input-dir sample_normalized --output-dir sample_rsvertices --combined
-./build/release/tin_test pd -i sample_normalized --rs-dir sample_rsvertices
+./build/release/tin_test pd -i sample_normalized --rs-dir sample_rsvertices \
+  -o sample_pd/pairwise_distances_vertex.txt
 ```
 
 With `--rs-dir` (or `-rs`), R*-trees are loaded from that folder: if `rs_merge_manifest.txt` exists (`rs --combined`), trees are read from split `merged_*.tinrs` bundles; otherwise each `object_N.rstree` is loaded separately. Without `--rs-dir`, in-memory R*-trees are built before the matrix; console output includes separate timing for **rs build** / **rs load** and **matrix** computation. Use `--kd-dir` (or `-kd`) to load KD-trees instead (`--rs-dir` and `--kd-dir` are mutually exclusive).
@@ -202,7 +245,7 @@ Requires a sibling `tin_exp` directory. Uses `build/release/tin_test` when prese
 
 ### Real dataset statistics
 
-Counts and formats for the four real-world datasets used in experiments. Folder names match `datasets_raw/` and `datasets_norm/`.
+Counts and formats for the four real-world datasets used in experiments. Raw sources live under `datasets_raw/`; processed outputs live under per-dataset folders (e.g. `real_First100_ModelNet40/norm/`).
 
 **Original dataset** (upstream sources, before this repo):
 
@@ -222,22 +265,36 @@ Counts and formats for the four real-world datasets used in experiments. Folder 
 | ModelNet40_manually_aligned | PLY | 12,311 | `metadata.txt`: filename, category, #v, #f, … |
 | ShapeNetCore | PLY | 51,209 | 52,472 entries in `metadata.txt` (filename, category, #v, #f, …) |
 
-**Normalized datasets** (`../tin_exp/datasets_norm/<name>/`):
+**Per-dataset layout** (`../tin_exp/<dataset>/`):
 
-| Dataset | Format | Meshes | Notes |
-|---------|--------|--------|-------|
-| ModelNet40 | PLY | 9,449 | Zero-mean translation only (no scaling) |
-| ModelNet40_auto_aligned | PLY | 12,311 | |
-| ModelNet40_manually_aligned | PLY | 12,311 | |
-| ShapeNetCore | PLY | 51,176 | TODO: some files corrupted |
+| Subfolder | Contents |
+|-----------|----------|
+| `norm/` | Normalized `.ply` (zero-mean translation only) |
+| `norm_pack/` | `merged_*.tinply` + `ply_merge_manifest.txt` |
+| `norm_rs/` | `merged_*.tinrs` + `rs_merge_manifest.txt` |
+| `norm_kd/` | KD indexes (optional; not used by PD today) |
+| `norm_ptsample_<N>/` | Sampled point clouds as `merged_*.tinply` + manifest |
+| `norm_pd/` | `pairwise_distances_vertex.txt` |
+
+**Dataset folder names** (small = local default, full = server):
+
+| Small (`real_First100_*`, 100 meshes) | Full (`real_*`, all meshes) |
+|---------------------------------------|-----------------------------|
+| `real_First100_ModelNet40` | `real_ModelNet40` |
+| `real_First100_ModelNet40_auto_aligned` | `real_ModelNet40_auto_aligned` |
+| `real_First100_ModelNet40_manually_aligned` | `real_ModelNet40_manually_aligned` |
+| `real_First100_ShapeNetCore` | `real_ShapeNetCore` |
+
+Synthetic presets use `synthetic_<preset>/` (e.g. `synthetic_objects100_vertices200/`). Lists are in `scripts/datasets_common.sh`.
 
 | Script | Input | Output |
 |--------|--------|--------|
-| `scripts/normalize_datasets.sh` | `output_synthetic/`, `../tin_exp/datasets_raw/` | `../tin_exp/datasets_norm/<name>/` |
-| `scripts/compress_datasets.sh` | `../tin_exp/datasets_norm/<name>/` | `../tin_exp/datasets_norm_pack/<name>/` |
-| `scripts/build_rs_datasets.sh` | `../tin_exp/datasets_norm_pack/<name>/` | `../tin_exp/datasets_norm_rs/<name>/` |
-| `scripts/build_kd_datasets.sh` | `../tin_exp/datasets_norm_pack/<name>/` | `../tin_exp/datasets_norm_kd/<name>/` |
-| `scripts/compute_pd_datasets.sh` | `../tin_exp/datasets_norm_pack/<name>/`, `../tin_exp/datasets_norm_rs/<name>/` | `../tin_exp/datasets_norm_pd/<name>/pairwise_distances_vertex.txt` |
+| `scripts/normalize_datasets.sh` | `output_synthetic/`, `datasets_raw/` | `<dataset>/norm/` |
+| `scripts/compress_datasets.sh` | `<dataset>/norm/` | `<dataset>/norm_pack/` |
+| `scripts/build_rs_datasets.sh` | `<dataset>/norm_pack/` | `<dataset>/norm_rs/` |
+| `scripts/build_kd_datasets.sh` | `<dataset>/norm_pack/` | `<dataset>/norm_kd/` (optional) |
+| `scripts/ptsample_datasets.sh` | `<dataset>/norm/` | `<dataset>/norm_ptsample_<N>/` |
+| `scripts/compute_pd_datasets.sh` | `<dataset>/norm_pack/`, `<dataset>/norm_rs/` | `<dataset>/norm_pd/pairwise_distances_vertex.txt` |
 
 ```bash
 ./scripts/normalize_datasets.sh          # small (default)
@@ -248,17 +305,24 @@ Counts and formats for the four real-world datasets used in experiments. Folder 
 ./scripts/build_rs_datasets.sh full
 ./scripts/build_kd_datasets.sh           # optional KD-tree indexes
 ./scripts/build_kd_datasets.sh full
+./scripts/ptsample_datasets.sh           # 512, 1024, and 2048 points per mesh
+./scripts/ptsample_datasets.sh full
 ./scripts/compute_pd_datasets.sh         # after build_rs_datasets
 ./scripts/compute_pd_datasets.sh full
 ```
 
-`compress_datasets.sh` runs `tin_test compress` on each normalized subfolder and writes bundle files + `ply_merge_manifest.txt` under `../tin_exp/datasets_norm_pack/<name>/` (max 5000 meshes per `.tinply` bundle).
+`compress_datasets.sh` runs `tin_test compress` on each `<dataset>/norm/` and writes bundles under `<dataset>/norm_pack/` (max 5000 meshes per `.tinply` bundle).
 
-`build_rs_datasets.sh` runs `tin_test rs --combined` on each packed subfolder (`datasets_norm_pack/`) and writes split bundles per dataset (e.g. `datasets_norm_rs/ModelNet40/rs_merge_manifest.txt`, `merged_000.tinrs`, …). Run `compress_datasets.sh` first.
+`build_rs_datasets.sh` runs `tin_test rs --combined` on each `<dataset>/norm_pack/` and writes split bundles under `<dataset>/norm_rs/`. Run `compress_datasets.sh` first.
 
-`build_kd_datasets.sh` runs `tin_test kd --combined` on each packed subfolder and writes split bundles per dataset (e.g. `datasets_norm_kd/ModelNet40/kd_merge_manifest.txt`, `merged_000.tinkd`, …). Run `compress_datasets.sh` first.
+`build_kd_datasets.sh` runs `tin_test kd --combined` into `<dataset>/norm_kd/` (optional; not required for PD). Run `compress_datasets.sh` first.
 
-`compute_pd_datasets.sh` runs `tin_test pd --algorithm vertex --rs-dir …` on each packed dataset. **Small** mode: all synthetic presets plus at most 100 meshes per raw dataset; **full** mode: every subfolder under `datasets_norm_pack`, no mesh limit. Run `compress_datasets.sh` and `build_rs_datasets.sh` first.
+`ptsample_datasets.sh` runs `tin_test ptsample --pack` on each dataset's
+normalized per-mesh PLY files for 512, 1024, and 2048 points per mesh. It
+writes `<dataset>/norm_ptsample_512/`,
+`<dataset>/norm_ptsample_1024/`, and `<dataset>/norm_ptsample_2048/`.
+
+`compute_pd_datasets.sh` runs `tin_test pd --algorithm vertex --rs-dir <dataset>/norm_rs` on each packed dataset. **Small** mode: synthetic presets + `real_First100_*` datasets; **full** mode: all presets + `real_*` datasets. Run `compress_datasets.sh` and `build_rs_datasets.sh` first.
 
 ## Synthetic datasets script
 
@@ -398,6 +462,18 @@ auto meshes = tin_gen::generate_random_tin(
 tin_gen::save_objects_as_files(meshes, output_dir, tin_gen::MeshFormat::Ply);
 ```
 
+Surface samples can be generated uniformly across a TIN's faces:
+
+```cpp
+#include "tin_gen/face_sampling.hpp"
+
+auto samples = tin_gen::sample_points_on_faces(mesh, num_points, seed);
+```
+
+The requested total number of points is returned. Faces are selected
+proportionally to area, and each selected face is sampled uniformly using
+barycentric coordinates. A seed of `0` uses non-deterministic seeding.
+
 Exact hull vertex counts use `src/convex_hull_vertices.cpp` (grow/prune point set, Qhull for hull geometry, TriMesh2 to orient and validate).
 
 > Uniform random points in a 3D box yield only ~`N^(2/3)` hull vertices, so iterative adjustment is used for an exact count. Large `N` is slower than a single hull pass.
@@ -418,6 +494,7 @@ src/main.cpp                     # entry point
 src/app.cpp                      # CLI commands
 src/commands/generate.cpp
 src/backends/generator.cpp       # TriMesh2 + Qhull generation
+src/face_sampling.cpp            # uniform surface sampling on TIN faces
 src/convex_hull_vertices.cpp     # exact vertex-count point set
 src/convex_hull_3d.cpp           # Qhull hull mesh
 cmake/fetch_trimesh2.cmake       # FetchContent → third_party/trimesh2
@@ -425,6 +502,7 @@ cmake/find_qhull.cmake           # fetch sources → third_party/qhull
 cmake/qhull_vendor/              # build qhullstatic_r + qhullcpp only
 cmake/trimesh2/                  # static TriMesh2 library target
 scripts/generate_synthetic_datasets.sh
+scripts/ptsample_datasets.sh
 third_party/trimesh2/            # created at configure (gitignored)
 third_party/qhull/               # created at configure (gitignored)
 ```

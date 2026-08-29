@@ -44,6 +44,7 @@ add_library(tin_gen
   src/commands/index_vertices.cpp
   src/commands/distance.cpp
   src/commands/pairwise_distance.cpp
+  src/commands/point_sample.cpp
   src/kd_tree.cpp
   src/rs_tree.cpp
   src/ply_merge.cpp
@@ -52,6 +53,7 @@ add_library(tin_gen
   src/distance_algorithm.cpp
   src/convex_hull_3d.cpp
   src/convex_hull_vertices.cpp
+  src/face_sampling.cpp
   src/config.cpp
   src/console.cpp
   src/cpu_timer.cpp

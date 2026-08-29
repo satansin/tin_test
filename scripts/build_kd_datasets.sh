@@ -1,81 +1,40 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build KD-tree indexes from packed datasets under ../tin_exp/datasets_norm_pack/.
+# Build KD-tree indexes from packed datasets (optional; not used by the current PD pipeline).
 # Run compress_datasets.sh first.
 #
 # Usage:
 #   ./scripts/build_kd_datasets.sh [small|full]
 #
-# Output (per dataset):
-#   ../tin_exp/datasets_norm_kd/<name>/kd_merge_manifest.txt, merged_*.tinkd
+# Input:  ../tin_exp/<dataset>/norm_pack/
+# Output: ../tin_exp/<dataset>/norm_kd/
 
 MODE="${1:-small}"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=scripts/datasets_common.sh
+source "${ROOT}/scripts/datasets_common.sh"
 BIN="${TIN_TEST_BIN:-${ROOT}/build/release/tin_test}"
-PACK_ROOT="${ROOT}/../tin_exp/datasets_norm_pack"
-KD_ROOT="${ROOT}/../tin_exp/datasets_norm_kd"
 
-mkdir -p "${KD_ROOT}"
+if [[ "${MODE}" == "full" ]]; then
+  datasets=("${DATASETS_FULL[@]}")
+else
+  datasets=("${DATASETS_SMALL[@]}")
+fi
 
 echo ">>> build_kd_datasets.sh"
 echo "    mode:   ${MODE}"
 echo "    bin:    ${BIN}"
-echo "    input:  ${PACK_ROOT}"
-echo "    output: ${KD_ROOT}"
+echo "    root:   ${EXP_ROOT}"
+echo "    note:   KD indexes are optional; PD uses norm_rs by default"
 echo ""
 
-if [[ "${MODE}" == "full" ]]; then
-  echo "--- synthetic_objects100_vertices200 ---"
-  "${BIN}" kd -i "${PACK_ROOT}/synthetic_objects100_vertices200" \
-    -o "${KD_ROOT}/synthetic_objects100_vertices200" --combined
-  echo "--- synthetic_objects100_vertices500 ---"
-  "${BIN}" kd -i "${PACK_ROOT}/synthetic_objects100_vertices500" \
-    -o "${KD_ROOT}/synthetic_objects100_vertices500" --combined
-  echo "--- synthetic_objects1000_vertices200 ---"
-  "${BIN}" kd -i "${PACK_ROOT}/synthetic_objects1000_vertices200" \
-    -o "${KD_ROOT}/synthetic_objects1000_vertices200" --combined
-  echo "--- synthetic_objects1000_vertices500 ---"
-  "${BIN}" kd -i "${PACK_ROOT}/synthetic_objects1000_vertices500" \
-    -o "${KD_ROOT}/synthetic_objects1000_vertices500" --combined
-  echo "--- synthetic_objects10000_vertices200 ---"
-  "${BIN}" kd -i "${PACK_ROOT}/synthetic_objects10000_vertices200" \
-    -o "${KD_ROOT}/synthetic_objects10000_vertices200" --combined
-  echo "--- synthetic_objects10000_vertices500 ---"
-  "${BIN}" kd -i "${PACK_ROOT}/synthetic_objects10000_vertices500" \
-    -o "${KD_ROOT}/synthetic_objects10000_vertices500" --combined
-  echo "--- ModelNet40 ---"
-  "${BIN}" kd -i "${PACK_ROOT}/ModelNet40" -o "${KD_ROOT}/ModelNet40" --combined
-  echo "--- ModelNet40_auto_aligned ---"
-  "${BIN}" kd -i "${PACK_ROOT}/ModelNet40_auto_aligned" \
-    -o "${KD_ROOT}/ModelNet40_auto_aligned" --combined
-  echo "--- ModelNet40_manually_aligned ---"
-  "${BIN}" kd -i "${PACK_ROOT}/ModelNet40_manually_aligned" \
-    -o "${KD_ROOT}/ModelNet40_manually_aligned" --combined
-  echo "--- ShapeNetCore ---"
-  "${BIN}" kd -i "${PACK_ROOT}/ShapeNetCore" -o "${KD_ROOT}/ShapeNetCore" --combined
-else
-  echo "--- synthetic_objects100_vertices200 ---"
-  "${BIN}" kd -i "${PACK_ROOT}/synthetic_objects100_vertices200" \
-    -o "${KD_ROOT}/synthetic_objects100_vertices200" --combined
-  echo "--- synthetic_objects100_vertices500 ---"
-  "${BIN}" kd -i "${PACK_ROOT}/synthetic_objects100_vertices500" \
-    -o "${KD_ROOT}/synthetic_objects100_vertices500" --combined
-  echo "--- synthetic_objects1000_vertices200 ---"
-  "${BIN}" kd -i "${PACK_ROOT}/synthetic_objects1000_vertices200" \
-    -o "${KD_ROOT}/synthetic_objects1000_vertices200" --combined
-  echo "--- ModelNet40 ---"
-  "${BIN}" kd -i "${PACK_ROOT}/ModelNet40" -o "${KD_ROOT}/ModelNet40" --combined --max-objects 100
-  echo "--- ModelNet40_auto_aligned ---"
-  "${BIN}" kd -i "${PACK_ROOT}/ModelNet40_auto_aligned" \
-    -o "${KD_ROOT}/ModelNet40_auto_aligned" --combined --max-objects 100
-  echo "--- ModelNet40_manually_aligned ---"
-  "${BIN}" kd -i "${PACK_ROOT}/ModelNet40_manually_aligned" \
-    -o "${KD_ROOT}/ModelNet40_manually_aligned" --combined --max-objects 100
-  echo "--- ShapeNetCore ---"
-  "${BIN}" kd -i "${PACK_ROOT}/ShapeNetCore" -o "${KD_ROOT}/ShapeNetCore" --combined --max-objects 100
-fi
+for dataset in "${datasets[@]}"; do
+  echo "--- ${dataset} ---"
+  mkdir -p "$(dataset_kd "${dataset}")"
+  "${BIN}" kd -i "$(dataset_pack "${dataset}")" -o "$(dataset_kd "${dataset}")" --combined
+done
 
 echo ""
-echo "Done: ${KD_ROOT}"
+echo "Done: ${EXP_ROOT}"

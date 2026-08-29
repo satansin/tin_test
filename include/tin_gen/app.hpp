@@ -6,7 +6,16 @@
 
 namespace tin_gen {
 
-enum class AppCommand { Generate, Normalize, Compress, Kd, Rs, Distance, PairwiseDistance };
+enum class AppCommand {
+  Generate,
+  Normalize,
+  Compress,
+  Kd,
+  Rs,
+  Distance,
+  PointSample,
+  PairwiseDistance
+};
 
 struct AppRequest {
   AppCommand command = AppCommand::Generate;
@@ -15,6 +24,7 @@ struct AppRequest {
   CompressConfig compress_config;
   IndexVerticesConfig index_vertices_config;
   DistanceConfig distance_config;
+  PointSampleConfig point_sample_config;
   PairwiseDistanceConfig pairwise_distance_config;
 };
 

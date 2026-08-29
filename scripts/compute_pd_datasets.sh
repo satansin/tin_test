@@ -7,94 +7,35 @@ set -euo pipefail
 # Usage:
 #   ./scripts/compute_pd_datasets.sh [small|full]
 #
-# Output (per dataset):
-#   ../tin_exp/datasets_norm_pd/<name>/pairwise_distances_vertex.txt
+# Input:  ../tin_exp/<dataset>/norm_pack/, ../tin_exp/<dataset>/norm_rs/
+# Output: ../tin_exp/<dataset>/norm_pd/pairwise_distances_vertex.txt
 
 MODE="${1:-small}"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=scripts/datasets_common.sh
+source "${ROOT}/scripts/datasets_common.sh"
 BIN="${TIN_TEST_BIN:-${ROOT}/build/release/tin_test}"
-PACK_ROOT="${ROOT}/../tin_exp/datasets_norm_pack"
-RS_ROOT="${ROOT}/../tin_exp/datasets_norm_rs"
-PD_ROOT="${ROOT}/../tin_exp/datasets_norm_pd"
 
-mkdir -p "${PD_ROOT}"
+if [[ "${MODE}" == "full" ]]; then
+  datasets=("${DATASETS_FULL[@]}")
+else
+  datasets=("${DATASETS_SMALL[@]}")
+fi
 
 echo ">>> compute_pd_datasets.sh"
 echo "    mode:   ${MODE}"
 echo "    bin:    ${BIN}"
-echo "    input:  ${PACK_ROOT}"
-echo "    rs:     ${RS_ROOT}"
-echo "    output: ${PD_ROOT}"
+echo "    root:   ${EXP_ROOT}"
 echo ""
 
-if [[ "${MODE}" == "full" ]]; then
-  echo "--- synthetic_objects100_vertices200 ---"
-  "${BIN}" pd -i "${PACK_ROOT}/synthetic_objects100_vertices200" \
-    --rs-dir "${RS_ROOT}/synthetic_objects100_vertices200" --algorithm vertex \
-    -o "${PD_ROOT}/synthetic_objects100_vertices200/pairwise_distances_vertex.txt"
-  echo "--- synthetic_objects100_vertices500 ---"
-  "${BIN}" pd -i "${PACK_ROOT}/synthetic_objects100_vertices500" \
-    --rs-dir "${RS_ROOT}/synthetic_objects100_vertices500" --algorithm vertex \
-    -o "${PD_ROOT}/synthetic_objects100_vertices500/pairwise_distances_vertex.txt"
-  echo "--- synthetic_objects1000_vertices200 ---"
-  "${BIN}" pd -i "${PACK_ROOT}/synthetic_objects1000_vertices200" \
-    --rs-dir "${RS_ROOT}/synthetic_objects1000_vertices200" --algorithm vertex \
-    -o "${PD_ROOT}/synthetic_objects1000_vertices200/pairwise_distances_vertex.txt"
-  echo "--- synthetic_objects1000_vertices500 ---"
-  "${BIN}" pd -i "${PACK_ROOT}/synthetic_objects1000_vertices500" \
-    --rs-dir "${RS_ROOT}/synthetic_objects1000_vertices500" --algorithm vertex \
-    -o "${PD_ROOT}/synthetic_objects1000_vertices500/pairwise_distances_vertex.txt"
-  echo "--- synthetic_objects10000_vertices200 ---"
-  "${BIN}" pd -i "${PACK_ROOT}/synthetic_objects10000_vertices200" \
-    --rs-dir "${RS_ROOT}/synthetic_objects10000_vertices200" --algorithm vertex \
-    -o "${PD_ROOT}/synthetic_objects10000_vertices200/pairwise_distances_vertex.txt"
-  echo "--- synthetic_objects10000_vertices500 ---"
-  "${BIN}" pd -i "${PACK_ROOT}/synthetic_objects10000_vertices500" \
-    --rs-dir "${RS_ROOT}/synthetic_objects10000_vertices500" --algorithm vertex \
-    -o "${PD_ROOT}/synthetic_objects10000_vertices500/pairwise_distances_vertex.txt"
-  echo "--- ModelNet40 ---"
-  "${BIN}" pd -i "${PACK_ROOT}/ModelNet40" --rs-dir "${RS_ROOT}/ModelNet40" --algorithm vertex \
-    -o "${PD_ROOT}/ModelNet40/pairwise_distances_vertex.txt"
-  echo "--- ModelNet40_auto_aligned ---"
-  "${BIN}" pd -i "${PACK_ROOT}/ModelNet40_auto_aligned" \
-    --rs-dir "${RS_ROOT}/ModelNet40_auto_aligned" --algorithm vertex \
-    -o "${PD_ROOT}/ModelNet40_auto_aligned/pairwise_distances_vertex.txt"
-  echo "--- ModelNet40_manually_aligned ---"
-  "${BIN}" pd -i "${PACK_ROOT}/ModelNet40_manually_aligned" \
-    --rs-dir "${RS_ROOT}/ModelNet40_manually_aligned" --algorithm vertex \
-    -o "${PD_ROOT}/ModelNet40_manually_aligned/pairwise_distances_vertex.txt"
-  echo "--- ShapeNetCore ---"
-  "${BIN}" pd -i "${PACK_ROOT}/ShapeNetCore" --rs-dir "${RS_ROOT}/ShapeNetCore" --algorithm vertex \
-    -o "${PD_ROOT}/ShapeNetCore/pairwise_distances_vertex.txt"
-else
-  echo "--- synthetic_objects100_vertices200 ---"
-  "${BIN}" pd -i "${PACK_ROOT}/synthetic_objects100_vertices200" \
-    --rs-dir "${RS_ROOT}/synthetic_objects100_vertices200" --algorithm vertex \
-    -o "${PD_ROOT}/synthetic_objects100_vertices200/pairwise_distances_vertex.txt"
-  echo "--- synthetic_objects100_vertices500 ---"
-  "${BIN}" pd -i "${PACK_ROOT}/synthetic_objects100_vertices500" \
-    --rs-dir "${RS_ROOT}/synthetic_objects100_vertices500" --algorithm vertex \
-    -o "${PD_ROOT}/synthetic_objects100_vertices500/pairwise_distances_vertex.txt"
-  echo "--- synthetic_objects1000_vertices200 ---"
-  "${BIN}" pd -i "${PACK_ROOT}/synthetic_objects1000_vertices200" \
-    --rs-dir "${RS_ROOT}/synthetic_objects1000_vertices200" --algorithm vertex \
-    -o "${PD_ROOT}/synthetic_objects1000_vertices200/pairwise_distances_vertex.txt"
-  echo "--- ModelNet40 ---"
-  "${BIN}" pd -i "${PACK_ROOT}/ModelNet40" --rs-dir "${RS_ROOT}/ModelNet40" --algorithm vertex \
-    --max-objects 100 -o "${PD_ROOT}/ModelNet40/pairwise_distances_vertex.txt"
-  echo "--- ModelNet40_auto_aligned ---"
-  "${BIN}" pd -i "${PACK_ROOT}/ModelNet40_auto_aligned" \
-    --rs-dir "${RS_ROOT}/ModelNet40_auto_aligned" --algorithm vertex --max-objects 100 \
-    -o "${PD_ROOT}/ModelNet40_auto_aligned/pairwise_distances_vertex.txt"
-  echo "--- ModelNet40_manually_aligned ---"
-  "${BIN}" pd -i "${PACK_ROOT}/ModelNet40_manually_aligned" \
-    --rs-dir "${RS_ROOT}/ModelNet40_manually_aligned" --algorithm vertex --max-objects 100 \
-    -o "${PD_ROOT}/ModelNet40_manually_aligned/pairwise_distances_vertex.txt"
-  echo "--- ShapeNetCore ---"
-  "${BIN}" pd -i "${PACK_ROOT}/ShapeNetCore" --rs-dir "${RS_ROOT}/ShapeNetCore" --algorithm vertex \
-    --max-objects 100 -o "${PD_ROOT}/ShapeNetCore/pairwise_distances_vertex.txt"
-fi
+for dataset in "${datasets[@]}"; do
+  echo "--- ${dataset} ---"
+  mkdir -p "${EXP_ROOT}/${dataset}/norm_pd"
+  "${BIN}" pd -i "$(dataset_pack "${dataset}")" \
+    --rs-dir "$(dataset_rs "${dataset}")" --algorithm vertex \
+    -o "$(dataset_pd_file "${dataset}")"
+done
 
 echo ""
-echo "Done: ${PD_ROOT}"
+echo "Done: ${EXP_ROOT}"

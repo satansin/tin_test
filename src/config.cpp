@@ -31,6 +31,18 @@ void require_input_dir(const std::string& input_dir, const std::string_view comm
   }
 }
 
+void require_output_dir(const std::string& output_dir, const std::string_view command) {
+  if (output_dir.empty()) {
+    throw std::runtime_error(std::string(command) + " requires --output-dir DIR");
+  }
+}
+
+void require_output_path(const std::string& output_path, const std::string_view command) {
+  if (output_path.empty()) {
+    throw std::runtime_error(std::string(command) + " requires --output PATH");
+  }
+}
+
 }  // namespace
 
 std::optional<GenerationConfig> parse_generate_config(const int argc, char* argv[]) {
@@ -71,6 +83,7 @@ std::optional<GenerationConfig> parse_generate_config(const int argc, char* argv
   if (config.scale <= 0.0) {
     throw std::runtime_error("scale must be > 0");
   }
+  require_output_dir(config.output_dir, "generate");
 
   return config;
 }
@@ -98,17 +111,13 @@ std::optional<NormalizeConfig> parse_normalize_config(const int argc, char* argv
   }
 
   require_input_dir(config.input_dir, "normalize");
+  require_output_dir(config.output_dir, "normalize");
   return config;
 }
 
 IndexVerticesConfig default_index_vertices_config(const VertexIndexKind kind) {
   IndexVerticesConfig config;
   config.kind = kind;
-  if (kind == VertexIndexKind::Kd) {
-    config.output_dir = "sample_kdvertices";
-  } else {
-    config.output_dir = "sample_rsvertices";
-  }
   return config;
 }
 
@@ -139,6 +148,7 @@ std::optional<IndexVerticesConfig> parse_index_vertices_config(const int argc, c
   }
 
   require_input_dir(config.input_dir, command_name);
+  require_output_dir(config.output_dir, command_name);
   return config;
 }
 
@@ -168,6 +178,7 @@ std::optional<CompressConfig> parse_compress_config(const int argc, char* argv[]
   }
 
   require_input_dir(config.input_dir, "compress");
+  require_output_dir(config.output_dir, "compress");
   return config;
 }
 
@@ -208,15 +219,58 @@ std::optional<DistanceConfig> parse_distance_config(const int argc, char* argv[]
   return config;
 }
 
-std::string default_pairwise_distance_output_path(const DistanceAlgorithm algorithm) {
-  return std::string("sample_pd/pairwise_distances_") +
-         std::string(distance_algorithm_name(algorithm)) + ".txt";
+std::optional<PointSampleConfig> parse_point_sample_config(const int argc, char* argv[]) {
+  PointSampleConfig config;
+
+  for (int i = 0; i < argc; ++i) {
+    const std::string arg = argv[i];
+
+    if (is_help_flag(arg)) {
+      return std::nullopt;
+    }
+    if (arg == "--input-dir" || arg == "-i") {
+      config.input_dir = need_arg_value(argc, argv, i, arg.c_str());
+    } else if (arg == "--output-dir" || arg == "-o") {
+      config.output_dir = need_arg_value(argc, argv, i, arg.c_str());
+    } else if (arg == "--format") {
+      config.format = parse_mesh_format(need_arg_value(argc, argv, i, "--format"));
+    } else if (arg == "--num-points" || arg == "--points" || arg == "-n") {
+      config.num_points =
+          static_cast<std::size_t>(std::stoull(need_arg_value(argc, argv, i, arg.c_str())));
+    } else if (arg == "--max-objects" || arg == "--limit") {
+      config.max_objects =
+          static_cast<std::size_t>(std::stoull(need_arg_value(argc, argv, i, arg.c_str())));
+    } else if (arg == "--max-meshes-per-bundle") {
+      config.max_meshes_per_bundle =
+          static_cast<std::size_t>(std::stoull(need_arg_value(argc, argv, i, arg.c_str())));
+    } else if (arg == "--pack") {
+      config.pack_output = true;
+    } else if (arg == "--seed") {
+      config.random_seed =
+          static_cast<unsigned>(std::stoul(need_arg_value(argc, argv, i, "--seed")));
+    } else {
+      throw std::runtime_error("Unknown argument: " + arg);
+    }
+  }
+
+  require_input_dir(config.input_dir, "ptsample");
+  require_output_dir(config.output_dir, "ptsample");
+  if (config.num_points == 0) {
+    throw std::runtime_error("ptsample requires --num-points N with N > 0");
+  }
+  if (config.max_meshes_per_bundle == 0) {
+    throw std::runtime_error("ptsample: max_meshes_per_bundle must be > 0");
+  }
+  if (config.pack_output && config.format != MeshFormat::Ply) {
+    throw std::runtime_error("ptsample: --pack requires --format ply");
+  }
+
+  return config;
 }
 
 std::optional<PairwiseDistanceConfig> parse_pairwise_distance_config(const int argc,
                                                                      char* argv[]) {
   PairwiseDistanceConfig config;
-  bool output_set = false;
 
   for (int i = 0; i < argc; ++i) {
     const std::string arg = argv[i];
@@ -228,7 +282,6 @@ std::optional<PairwiseDistanceConfig> parse_pairwise_distance_config(const int a
       config.input_dir = need_arg_value(argc, argv, i, arg.c_str());
     } else if (arg == "--output" || arg == "-o") {
       config.output_path = need_arg_value(argc, argv, i, arg.c_str());
-      output_set = true;
     } else if (arg == "--algorithm") {
       config.algorithm = parse_distance_algorithm(need_arg_value(argc, argv, i, "--algorithm"));
     } else if (arg == "--max-objects" || arg == "--limit") {
@@ -245,10 +298,7 @@ std::optional<PairwiseDistanceConfig> parse_pairwise_distance_config(const int a
   }
 
   require_input_dir(config.input_dir, "pairwise_distance");
-
-  if (!output_set) {
-    config.output_path = default_pairwise_distance_output_path(config.algorithm);
-  }
+  require_output_path(config.output_path, "pairwise_distance");
 
   return config;
 }

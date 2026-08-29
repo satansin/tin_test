@@ -15,14 +15,14 @@ struct GenerationConfig {
   std::size_t num_objects = 10;
   std::size_t num_vertices_per_object = 200;
   double scale = 1.0;
-  std::string output_dir = "sample_gen";
+  std::string output_dir;
   unsigned random_seed = 0;
   bool quiet = false;
 };
 
 struct NormalizeConfig {
   std::string input_dir;
-  std::string output_dir = "sample_normalized";
+  std::string output_dir;
   std::size_t max_objects = 0;  // 0 = all
 };
 
@@ -52,7 +52,7 @@ struct IndexVerticesConfig {
 
 struct CompressConfig {
   std::string input_dir;
-  std::string output_dir = "sample_pack";
+  std::string output_dir;
   std::size_t max_meshes_per_bundle = kDefaultMaxMeshesPerPlyBundle;
   std::size_t max_objects = 0;  // 0 = all
 };
@@ -71,9 +71,24 @@ struct DistanceConfig {
 /// Parse options for the distance command. Returns nullopt on -h/--help.
 [[nodiscard]] std::optional<DistanceConfig> parse_distance_config(int argc, char* argv[]);
 
+struct PointSampleConfig {
+  std::string input_dir;
+  std::string output_dir;
+  MeshFormat format = MeshFormat::Ply;
+  std::size_t num_points = 0;
+  std::size_t max_objects = 0;  // 0 = all
+  std::size_t max_meshes_per_bundle = kDefaultMaxMeshesPerPlyBundle;
+  bool pack_output = false;
+  unsigned random_seed = 0;
+};
+
+/// Parse options for the ptsample command. Returns nullopt on -h/--help.
+[[nodiscard]] std::optional<PointSampleConfig> parse_point_sample_config(int argc,
+                                                                           char* argv[]);
+
 struct PairwiseDistanceConfig {
   std::string input_dir;
-  std::string output_path;  // default: sample_pd/pairwise_distances_<algorithm>.txt
+  std::string output_path;
   DistanceAlgorithm algorithm = DistanceAlgorithm::Vertex;
   std::size_t max_objects = 0;  // 0 = all
   /// When set (`--rs-dir`), load per-mesh `<stem>.rstree` files from this folder for NN search.
@@ -81,8 +96,6 @@ struct PairwiseDistanceConfig {
   /// When set (`--kd-dir`), load per-mesh `<stem>.kdtree` files instead of R*-trees.
   std::optional<std::string> kd_dir;
 };
-
-[[nodiscard]] std::string default_pairwise_distance_output_path(DistanceAlgorithm algorithm);
 
 /// Parse options for the pairwise_distance command. Returns nullopt on -h/--help.
 [[nodiscard]] std::optional<PairwiseDistanceConfig> parse_pairwise_distance_config(int argc,

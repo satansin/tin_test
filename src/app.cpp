@@ -4,6 +4,7 @@
 #include "tin_gen/commands/distance.hpp"
 #include "tin_gen/commands/index_vertices.hpp"
 #include "tin_gen/commands/pairwise_distance.hpp"
+#include "tin_gen/commands/point_sample.hpp"
 #include "tin_gen/commands/normalize.hpp"
 #include "tin_gen/commands/compress.hpp"
 
@@ -48,6 +49,10 @@ AppCommand parse_app_command(const std::string_view name) {
   if (normalized == "distance" || normalized == "dist") {
     return AppCommand::Distance;
   }
+  if (normalized == "ptsample" || normalized == "point_sample" ||
+      normalized == "sample_points") {
+    return AppCommand::PointSample;
+  }
   if (normalized == "pairwise_distance" || normalized == "pairwisedistance" ||
       normalized == "pd") {
     return AppCommand::PairwiseDistance;
@@ -69,6 +74,8 @@ std::string_view app_command_name(const AppCommand command) {
       return "rs";
     case AppCommand::Distance:
       return "distance";
+    case AppCommand::PointSample:
+      return "ptsample";
     case AppCommand::PairwiseDistance:
       return "pairwise_distance";
   }
@@ -84,51 +91,64 @@ void print_usage(const char* program) {
             << "  kd (kdvertices)  Build KD-tree vertex indexes for meshes in a folder\n"
             << "  rs               Build R*-tree vertex indexes for meshes in a folder\n"
             << "  distance (dist)    Dissimilarity between two PLY meshes\n"
+            << "  ptsample            Sample points across TIN faces in a folder\n"
             << "  pairwise_distance (pd)  All pairwise dissimilarities in a folder\n"
             << "  help                    Show this help\n\n"
-            << "Command aliases: gen, norm, pack, kd, rs, dist, pd\n\n"
+            << "Command aliases: gen, norm, pack, kd, rs, dist, ptsample, pd\n\n"
             << "Generate options:\n"
             << "  --format FORMAT     Output mesh format: ply | obj (default: ply)\n"
-            << "  -o, --output-dir DIR   Output directory (default: sample_gen)\n"
+            << "  -o, --output-dir DIR   Output directory (required)\n"
             << "  --num-objects N     Number of meshes to generate (default: 10)\n"
             << "  --num-vertices-per-object N   Vertices on each convex hull (default: 200)\n"
             << "  --scale VALUE       Random point coordinate scale (default: 1)\n"
             << "  --seed N            RNG seed, 0 = random (default: 0)\n"
             << "  -q, --quiet         Progress every 1000 meshes (not every file)\n\n"
             << "Normalize options:\n"
-            << "  -i, --input-dir DIR    Folder containing .ply files\n"
-            << "  -o, --output-dir DIR   Output directory (default: sample_normalized)\n"
+            << "  -i, --input-dir DIR    Folder containing .ply files (required)\n"
+            << "  -o, --output-dir DIR   Output directory (required)\n"
             << "  --max-objects N        Normalize at most N meshes (default: all)\n\n"
             << "Compress options:\n"
-            << "  -i, --input-dir DIR    Folder containing .ply files (e.g. normalized dataset)\n"
-            << "  -o, --output-dir DIR   Output folder (default: sample_pack)\n"
+            << "  -i, --input-dir DIR    Folder containing .ply files (required)\n"
+            << "  -o, --output-dir DIR   Output folder (required)\n"
             << "  --max-meshes-per-bundle N   Split bundles at N meshes (default: 5000)\n"
             << "  --max-objects N        Merge at most N meshes (default: all)\n\n"
             << "Index build options (kd / rs):\n"
-            << "  -i, --input-dir DIR    Folder containing .ply files\n"
-            << "  -o, --output-dir DIR   Output directory (kd: sample_kdvertices, rs: sample_rsvertices)\n"
+            << "  -i, --input-dir DIR    Folder containing .ply files (required)\n"
+            << "  -o, --output-dir DIR   Output directory (required)\n"
             << "  --max-objects N        Process at most N meshes (default: all)\n"
             << "  --combined             Write split bundles + manifest (5000 indexes per file)\n\n"
             << "Distance options:\n"
             << "  A.ply B.ply            Two mesh paths (or --a / --b)\n"
             << "  --algorithm NAME       vertex (default)\n"
             << "  --compare-index        Build KD-tree and R*-tree; print side-by-side timings\n\n"
+            << "Point-sampling options:\n"
+            << "  -i, --input-dir DIR    Input folder containing .ply files (required)\n"
+            << "  -o, --output-dir DIR   Output folder for sampled point clouds (required)\n"
+            << "  -n, --num-points N     Number of surface points (required, N > 0)\n"
+            << "  --max-objects N        Process at most N meshes (default: all)\n"
+            << "  --max-meshes-per-bundle N   Bundle limit with --pack (default: 5000)\n"
+            << "  --pack                 Write sampled meshes directly as .tinply bundles\n"
+            << "  --format FORMAT        Output format: ply | obj (default: ply)\n"
+            << "  --seed N               RNG seed, 0 = random (default: 0)\n\n"
             << "Pairwise_distance options:\n"
-            << "  -i, --input-dir DIR    Folder containing .ply files\n"
-            << "  -o, --output PATH      Matrix file (default: sample_pd/pairwise_distances_<algorithm>.txt)\n"
+            << "  -i, --input-dir DIR    Folder containing .ply files (required)\n"
+            << "  -o, --output PATH      Matrix file (required)\n"
             << "  --algorithm NAME       vertex (default)\n"
             << "  --max-objects N        Use at most N meshes (default: all)\n"
             << "  --rs-dir DIR, -rs DIR  Use prebuilt <stem>.rstree files for NN search (default index)\n"
             << "  --kd-dir DIR, -kd DIR  Use prebuilt <stem>.kdtree files for NN search\n\n"
             << "Examples:\n"
-            << "  " << program << " gen --format obj\n"
-            << "  " << program << " gen --seed 42 --num-objects 5\n"
-            << "  " << program << " norm --input-dir sample_gen\n"
-            << "  " << program << " kd --input-dir sample_normalized\n"
-            << "  " << program << " rs --input-dir sample_normalized\n"
-            << "  " << program << " dist sample_normalized/object_1.ply "
-            << "sample_normalized/object_2.ply\n"
-            << "  " << program << " pd --input-dir sample_normalized\n";
+            << "  " << program << " gen --format obj --output-dir output/example_obj\n"
+            << "  " << program << " gen --seed 42 --num-objects 5 --output-dir output/example\n"
+            << "  " << program << " norm --input-dir output/example --output-dir output/normalized\n"
+            << "  " << program << " kd --input-dir output/normalized --output-dir output/kd\n"
+            << "  " << program << " rs --input-dir output/normalized --output-dir output/rs\n"
+            << "  " << program << " dist output/normalized/object_1.ply "
+            << "output/normalized/object_2.ply\n"
+            << "  " << program << " ptsample -i output/normalized "
+            << "-o output/samples -n 10000 --seed 42\n"
+            << "  " << program << " pd --input-dir output/normalized "
+            << "--output output/pairwise_distances_vertex.txt\n";
 }
 
 std::optional<AppRequest> parse_app_request(const int argc, char* argv[]) {
@@ -197,6 +217,13 @@ std::optional<AppRequest> parse_app_request(const int argc, char* argv[]) {
       return std::nullopt;
     }
     request.distance_config = *config;
+  } else if (request.command == AppCommand::PointSample) {
+    const auto config = parse_point_sample_config(argc - option_start, argv + option_start);
+    if (!config) {
+      print_usage(argv[0]);
+      return std::nullopt;
+    }
+    request.point_sample_config = *config;
   } else if (request.command == AppCommand::PairwiseDistance) {
     const auto config =
         parse_pairwise_distance_config(argc - option_start, argv + option_start);
@@ -222,6 +249,8 @@ int run_app(const AppRequest& request) {
       return run_index_vertices(request.index_vertices_config);
     case AppCommand::Distance:
       return run_distance(request.distance_config);
+    case AppCommand::PointSample:
+      return run_point_sample(request.point_sample_config);
     case AppCommand::PairwiseDistance:
       return run_pairwise_distance(request.pairwise_distance_config);
   }

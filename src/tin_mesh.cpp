@@ -438,12 +438,7 @@ bool TinMesh::is_watertight() const {
   return true;
 }
 
-void write_ply(const std::string& filepath, const TinMesh& mesh) {
-  std::ofstream out(filepath);
-  if (!out) {
-    throw std::runtime_error("Failed to open PLY file for writing: " + filepath);
-  }
-
+void write_ply_stream(std::ostream& out, const TinMesh& mesh) {
   out << "ply\n"
       << "format ascii 1.0\n"
       << "element vertex " << mesh.vertices.size() << '\n'
@@ -460,6 +455,14 @@ void write_ply(const std::string& filepath, const TinMesh& mesh) {
   for (const auto& face : mesh.faces) {
     out << "3 " << face[0] << ' ' << face[1] << ' ' << face[2] << '\n';
   }
+}
+
+void write_ply(const std::string& filepath, const TinMesh& mesh) {
+  std::ofstream out(filepath);
+  if (!out) {
+    throw std::runtime_error("Failed to open PLY file for writing: " + filepath);
+  }
+  write_ply_stream(out, mesh);
 }
 
 void write_obj(const std::string& filepath, const TinMesh& mesh) {

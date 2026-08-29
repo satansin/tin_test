@@ -28,6 +28,9 @@ TinMesh read_ply(const std::string& filepath, PlyReadContent content = PlyReadCo
 [[nodiscard]] TinMesh read_ply_memory(const char* data, std::size_t size, std::string_view context,
                                       PlyReadContent content = PlyReadContent::Full);
 
+/// Write an ASCII PLY mesh to an open stream.
+void write_ply_stream(std::ostream& out, const TinMesh& mesh);
+
 void write_mesh(const std::string& filepath, const TinMesh& mesh, MeshFormat format);
 
 }  // namespace tin_gen

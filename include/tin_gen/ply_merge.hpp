@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <functional>
 #include <optional>
 #include <string>
@@ -50,6 +51,38 @@ struct PlyMergeResult {
   std::size_t mesh_count = 0;
   std::size_t bundle_count = 0;
   std::filesystem::path manifest_path;
+};
+
+/// Incrementally write generated PLY meshes directly into bundle files.
+class PlyMergeWriter {
+ public:
+  PlyMergeWriter(std::filesystem::path output_dir, std::filesystem::path source_dir,
+                 std::size_t max_meshes_per_bundle = kDefaultMaxMeshesPerPlyBundle);
+  ~PlyMergeWriter();
+
+  PlyMergeWriter(const PlyMergeWriter&) = delete;
+  PlyMergeWriter& operator=(const PlyMergeWriter&) = delete;
+
+  /// Add one mesh using @p original_filename as its manifest name.
+  void add(std::string original_filename, const TinMesh& mesh);
+
+  /// Close the current bundle and write the manifest.
+  [[nodiscard]] PlyMergeResult finish();
+
+ private:
+  void open_bundle();
+  void close_bundle();
+
+  std::filesystem::path output_dir_;
+  std::filesystem::path source_dir_;
+  std::size_t max_meshes_per_bundle_;
+  std::size_t bundle_index_ = 0;
+  std::size_t bundle_count_ = 0;
+  std::size_t meshes_in_bundle_ = 0;
+  std::uint64_t bundle_offset_ = 0;
+  std::ofstream bundle_out_;
+  std::vector<PlyMergeEntry> entries_;
+  bool finished_ = false;
 };
 
 // --- Merge / read API ---

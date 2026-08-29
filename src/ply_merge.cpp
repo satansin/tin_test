@@ -14,6 +14,7 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_set>
+#include <utility>
 
 namespace tin_gen {
 namespace fs = std::filesystem;
@@ -365,6 +366,105 @@ PlyMergeManifest load_ply_merge_manifest(const fs::path& manifest_path) {
   }
 
   return manifest;
+}
+
+PlyMergeWriter::PlyMergeWriter(fs::path output_dir, fs::path source_dir,
+                               const std::size_t max_meshes_per_bundle)
+    : output_dir_(std::move(output_dir)),
+      source_dir_(std::move(source_dir)),
+      max_meshes_per_bundle_(max_meshes_per_bundle) {
+  if (max_meshes_per_bundle_ == 0) {
+    throw std::invalid_argument("PlyMergeWriter: max_meshes_per_bundle must be > 0");
+  }
+  fs::create_directories(output_dir_);
+}
+
+PlyMergeWriter::~PlyMergeWriter() {
+  close_bundle();
+}
+
+void PlyMergeWriter::open_bundle() {
+  bundle_out_.open(output_dir_ / bundle_filename(bundle_index_),
+                   std::ios::binary | std::ios::trunc);
+  if (!bundle_out_) {
+    throw std::runtime_error("Failed to create merge bundle: " +
+                             (output_dir_ / bundle_filename(bundle_index_)).string());
+  }
+  ++bundle_count_;
+  bundle_offset_ = 0;
+}
+
+void PlyMergeWriter::close_bundle() {
+  if (bundle_out_.is_open()) {
+    bundle_out_.close();
+  }
+}
+
+void PlyMergeWriter::add(std::string original_filename, const TinMesh& mesh) {
+  if (finished_) {
+    throw std::logic_error("PlyMergeWriter: cannot add after finish");
+  }
+  if (original_filename.empty()) {
+    throw std::invalid_argument("PlyMergeWriter: original filename must not be empty");
+  }
+
+  std::ostringstream serialized;
+  write_ply_stream(serialized, mesh);
+  const std::string bytes = serialized.str();
+
+  if (meshes_in_bundle_ == 0) {
+    open_bundle();
+  }
+  const std::uint64_t offset = bundle_offset_;
+  bundle_out_.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+  if (!bundle_out_) {
+    throw std::runtime_error("Failed to write PLY merge bundle");
+  }
+
+  entries_.push_back({bundle_filename(bundle_index_), entries_.size(),
+                      std::move(original_filename), offset,
+                      static_cast<std::uint64_t>(bytes.size())});
+  bundle_offset_ += static_cast<std::uint64_t>(bytes.size());
+  ++meshes_in_bundle_;
+
+  if (meshes_in_bundle_ >= max_meshes_per_bundle_) {
+    close_bundle();
+    ++bundle_index_;
+    meshes_in_bundle_ = 0;
+  }
+}
+
+PlyMergeResult PlyMergeWriter::finish() {
+  if (finished_) {
+    throw std::logic_error("PlyMergeWriter: finish called more than once");
+  }
+  if (entries_.empty()) {
+    throw std::runtime_error("PlyMergeWriter: cannot finish without meshes");
+  }
+  close_bundle();
+
+  const fs::path manifest_path = output_dir_ / kPlyMergeManifestFilename;
+  std::ofstream manifest(manifest_path);
+  if (!manifest) {
+    throw std::runtime_error("Failed to write PLY merge manifest: " + manifest_path.string());
+  }
+
+  manifest << "# " << kManifestVersion << '\n';
+  manifest << "source_dir\t" << source_dir_.string() << '\n';
+  manifest << "max_meshes_per_bundle\t" << max_meshes_per_bundle_ << '\n';
+  manifest << "mesh_count\t" << entries_.size() << '\n';
+  manifest << "bundle_count\t" << bundle_count_ << '\n';
+  manifest << "# bundle_file\tmesh_index\toriginal_filename\toffset_bytes\tsize_bytes\n";
+  for (const auto& entry : entries_) {
+    manifest << entry.bundle_file << '\t' << entry.mesh_index << '\t' << entry.original_filename
+             << '\t' << entry.offset_bytes << '\t' << entry.size_bytes << '\n';
+  }
+  if (!manifest) {
+    throw std::runtime_error("Failed to write PLY merge manifest: " + manifest_path.string());
+  }
+
+  finished_ = true;
+  return {entries_.size(), bundle_count_, manifest_path};
 }
 
 PlyMergeResult write_ply_merge(const fs::path& source_dir, const fs::path& output_dir,
