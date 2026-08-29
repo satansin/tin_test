@@ -124,6 +124,10 @@ The synthetic dataset script enables `--quiet` automatically.
 
 Translates each mesh so the vertex mean is at the origin (subtracts the per-mesh mean). **No scaling** is applied. Output is written as ASCII PLY.
 
+Meshes that fail face-sampling validity checks (empty geometry, out-of-range face
+indices, or no non-degenerate faces) are skipped with a warning and are not
+written to the output folder. Read/parse failures are skipped the same way.
+
 | Flag | Default | Description |
 |------|---------|-------------|
 | `-i, --input-dir DIR` | (required) | Folder containing `.ply` files |

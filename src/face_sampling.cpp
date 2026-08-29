@@ -5,6 +5,7 @@
 #include <cmath>
 #include <random>
 #include <stdexcept>
+#include <string>
 
 namespace tin_gen {
 namespace {
@@ -38,36 +39,54 @@ std::mt19937 make_rng(const unsigned seed) {
 
 }  // namespace
 
-std::vector<MeshVertex> sample_points_on_faces(const TinMesh& mesh,
-                                               const std::size_t num_points,
-                                               const unsigned random_seed) {
-  if (num_points == 0) {
-    return {};
+std::optional<std::string> mesh_face_sampling_error(const TinMesh& mesh) {
+  if (mesh.vertices.empty()) {
+    return "mesh has no vertices";
   }
   if (mesh.faces.empty()) {
-    throw std::runtime_error("sample_points_on_faces: mesh has no faces");
+    return "mesh has no faces";
   }
 
-  std::vector<double> face_areas;
-  face_areas.reserve(mesh.faces.size());
   bool has_non_degenerate_face = false;
-
-  for (const auto& face : mesh.faces) {
-    for (const std::size_t vertex_index : face) {
+  for (std::size_t face_index = 0; face_index < mesh.faces.size(); ++face_index) {
+    const auto& face = mesh.faces[face_index];
+    for (std::size_t corner = 0; corner < face.size(); ++corner) {
+      const std::size_t vertex_index = face[corner];
       if (vertex_index >= mesh.vertices.size()) {
-        throw std::runtime_error("sample_points_on_faces: face references an invalid vertex");
+        return "face " + std::to_string(face_index) + " corner " + std::to_string(corner) +
+               " references invalid vertex " + std::to_string(vertex_index) +
+               " (vertex_count=" + std::to_string(mesh.vertices.size()) + ")";
       }
     }
 
     const MeshVertex edge_a = subtract(mesh.vertices[face[1]], mesh.vertices[face[0]]);
     const MeshVertex edge_b = subtract(mesh.vertices[face[2]], mesh.vertices[face[0]]);
     const double area = 0.5 * length(cross(edge_a, edge_b));
-    face_areas.push_back(area);
     has_non_degenerate_face = has_non_degenerate_face || area > 0.0;
   }
 
   if (!has_non_degenerate_face) {
-    throw std::runtime_error("sample_points_on_faces: mesh has no non-degenerate faces");
+    return "mesh has no non-degenerate faces";
+  }
+  return std::nullopt;
+}
+
+std::vector<MeshVertex> sample_points_on_faces(const TinMesh& mesh,
+                                               const std::size_t num_points,
+                                               const unsigned random_seed) {
+  if (num_points == 0) {
+    return {};
+  }
+  if (const std::optional<std::string> error = mesh_face_sampling_error(mesh)) {
+    throw std::runtime_error("sample_points_on_faces: " + *error);
+  }
+
+  std::vector<double> face_areas;
+  face_areas.reserve(mesh.faces.size());
+  for (const auto& face : mesh.faces) {
+    const MeshVertex edge_a = subtract(mesh.vertices[face[1]], mesh.vertices[face[0]]);
+    const MeshVertex edge_b = subtract(mesh.vertices[face[2]], mesh.vertices[face[0]]);
+    face_areas.push_back(0.5 * length(cross(edge_a, edge_b)));
   }
 
   std::mt19937 rng = make_rng(random_seed);

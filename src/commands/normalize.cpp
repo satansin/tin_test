@@ -1,12 +1,13 @@
 #include "tin_gen/commands/normalize.hpp"
 
+#include "tin_gen/face_sampling.hpp"
 #include "tin_gen/mesh_helper.hpp"
 #include "tin_gen/tin_mesh.hpp"
 
 #include <cstdlib>
-#include <cctype>
 #include <filesystem>
 #include <iostream>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -72,6 +73,14 @@ int run_normalize(const NormalizeConfig& config) {
     const fs::path& ply_path = ply_files[i];
     try {
       TinMesh mesh = read_ply(ply_path.string());
+      if (const std::optional<std::string> error = mesh_face_sampling_error(mesh)) {
+        std::cerr << "Warning: skipping " << ply_path.filename().string() << ": " << *error
+                  << '\n';
+        ++skipped_count;
+        load_progress.mark_loaded(i + 1);
+        continue;
+      }
+
       zero_center(mesh);
 
       const fs::path out_path = output_dir / ply_path.filename();
@@ -95,4 +104,3 @@ int run_normalize(const NormalizeConfig& config) {
 }
 
 }  // namespace tin_gen
-

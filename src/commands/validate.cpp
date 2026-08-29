@@ -1,10 +1,10 @@
 #include "tin_gen/commands/validate.hpp"
 
 #include "tin_gen/config.hpp"
+#include "tin_gen/face_sampling.hpp"
 #include "tin_gen/mesh_helper.hpp"
 #include "tin_gen/tin_mesh.hpp"
 
-#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -15,59 +15,6 @@
 #include <vector>
 
 namespace tin_gen {
-namespace {
-
-MeshVertex subtract(const MeshVertex& a, const MeshVertex& b) {
-  return {a[0] - b[0], a[1] - b[1], a[2] - b[2]};
-}
-
-MeshVertex cross(const MeshVertex& a, const MeshVertex& b) {
-  return {
-      a[1] * b[2] - a[2] * b[1],
-      a[2] * b[0] - a[0] * b[2],
-      a[0] * b[1] - a[1] * b[0],
-  };
-}
-
-double length(const MeshVertex& v) {
-  return std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-}
-
-/// Returns a human-readable problem description, or nullopt when the mesh is OK
-/// for face-area sampling (same checks as sample_points_on_faces).
-[[nodiscard]] std::optional<std::string> mesh_validation_error(const TinMesh& mesh) {
-  if (mesh.vertices.empty()) {
-    return "mesh has no vertices";
-  }
-  if (mesh.faces.empty()) {
-    return "mesh has no faces";
-  }
-
-  bool has_non_degenerate_face = false;
-  for (std::size_t face_index = 0; face_index < mesh.faces.size(); ++face_index) {
-    const auto& face = mesh.faces[face_index];
-    for (std::size_t corner = 0; corner < face.size(); ++corner) {
-      const std::size_t vertex_index = face[corner];
-      if (vertex_index >= mesh.vertices.size()) {
-        return "face " + std::to_string(face_index) + " corner " + std::to_string(corner) +
-               " references invalid vertex " + std::to_string(vertex_index) +
-               " (vertex_count=" + std::to_string(mesh.vertices.size()) + ")";
-      }
-    }
-
-    const MeshVertex edge_a = subtract(mesh.vertices[face[1]], mesh.vertices[face[0]]);
-    const MeshVertex edge_b = subtract(mesh.vertices[face[2]], mesh.vertices[face[0]]);
-    const double area = 0.5 * length(cross(edge_a, edge_b));
-    has_non_degenerate_face = has_non_degenerate_face || area > 0.0;
-  }
-
-  if (!has_non_degenerate_face) {
-    return "mesh has no non-degenerate faces";
-  }
-  return std::nullopt;
-}
-
-}  // namespace
 
 int run_validate(const ValidateConfig& config) {
   const std::filesystem::path input_dir(config.input_dir);
@@ -104,7 +51,7 @@ int run_validate(const ValidateConfig& config) {
     const std::string mesh_name = mesh_path.filename().string();
     try {
       const TinMesh mesh = read_dataset_mesh(listing, i);
-      if (const std::optional<std::string> error = mesh_validation_error(mesh)) {
+      if (const std::optional<std::string> error = mesh_face_sampling_error(mesh)) {
         const std::string line = mesh_name + "\t" + *error;
         problems.push_back(line);
         std::cerr << "INVALID: " << line << '\n';
