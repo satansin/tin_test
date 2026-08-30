@@ -35,11 +35,15 @@ mkdir -p "${DATASET}/norm"
   --combined
 
 for num_points in 512 1024 2048; do
+  ptsample_dir="${DATASET}/norm_ptsample_${num_points}"
+  ptsample_pack_dir="${DATASET}/norm_ptsample_${num_points}_pack"
   "${BIN}" ptsample \
     --input-dir "${DATASET}/norm" \
-    --output-dir "${DATASET}/norm_ptsample_${num_points}" \
-    --num-points "${num_points}" \
-    --pack
+    --output-dir "${ptsample_dir}" \
+    --num-points "${num_points}"
+  "${BIN}" compress \
+    --input-dir "${ptsample_dir}" \
+    --output-dir "${ptsample_pack_dir}"
 done
 
 echo "Finished regenerating ${DATASET}"

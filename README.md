@@ -296,7 +296,8 @@ Counts and formats for the four real-world datasets used in experiments. Raw sou
 | `norm_pack/` | `merged_*.tinply` + `ply_merge_manifest.txt` |
 | `norm_rs/` | `merged_*.tinrs` + `rs_merge_manifest.txt` |
 | `norm_kd/` | KD indexes (optional; not used by PD today) |
-| `norm_ptsample_<N>/` | Sampled point clouds as `merged_*.tinply` + manifest |
+| `norm_ptsample_<N>/` | Sampled point-cloud `.ply` files |
+| `norm_ptsample_<N>_pack/` | Packed sampled bundles + manifest |
 | `norm_pd/` | `pairwise_distances_vertex.txt` |
 
 **Dataset folder names** (small = local default, full = server):
@@ -317,6 +318,7 @@ Synthetic presets use `synthetic_<preset>/` (e.g. `synthetic_objects100_vertices
 | `scripts/build_rs_datasets.sh` | `<dataset>/norm_pack/` | `<dataset>/norm_rs/` |
 | `scripts/build_kd_datasets.sh` | `<dataset>/norm_pack/` | `<dataset>/norm_kd/` (optional) |
 | `scripts/ptsample_datasets.sh` | `<dataset>/norm/` | `<dataset>/norm_ptsample_<N>/` |
+| `scripts/compress_ptsample_datasets.sh` | `<dataset>/norm_ptsample_<N>/` | `<dataset>/norm_ptsample_<N>_pack/` |
 | `scripts/compute_pd_datasets.sh` | `<dataset>/norm_pack/`, `<dataset>/norm_rs/` | `<dataset>/norm_pd/pairwise_distances_vertex.txt` |
 
 ```bash
@@ -330,6 +332,8 @@ Synthetic presets use `synthetic_<preset>/` (e.g. `synthetic_objects100_vertices
 ./scripts/build_kd_datasets.sh full
 ./scripts/ptsample_datasets.sh           # 512, 1024, and 2048 points per mesh
 ./scripts/ptsample_datasets.sh full
+./scripts/compress_ptsample_datasets.sh  # after ptsample
+./scripts/compress_ptsample_datasets.sh full
 ./scripts/compute_pd_datasets.sh         # after build_rs_datasets
 ./scripts/compute_pd_datasets.sh full
 ```
@@ -340,10 +344,14 @@ Synthetic presets use `synthetic_<preset>/` (e.g. `synthetic_objects100_vertices
 
 `build_kd_datasets.sh` runs `tin_test kd --combined` into `<dataset>/norm_kd/` (optional; not required for PD). Run `compress_datasets.sh` first.
 
-`ptsample_datasets.sh` runs `tin_test ptsample --pack` on each dataset's
+`ptsample_datasets.sh` runs `tin_test ptsample` on each dataset's
 normalized per-mesh PLY files for 512, 1024, and 2048 points per mesh. It
 writes `<dataset>/norm_ptsample_512/`,
 `<dataset>/norm_ptsample_1024/`, and `<dataset>/norm_ptsample_2048/`.
+
+`compress_ptsample_datasets.sh` runs `tin_test compress` on each
+`norm_ptsample_<N>/` folder and writes packs under
+`norm_ptsample_<N>_pack/`. Run `ptsample_datasets.sh` first.
 
 `compute_pd_datasets.sh` runs `tin_test pd --algorithm vertex --rs-dir <dataset>/norm_rs` on each packed dataset. **Small** mode: synthetic presets + `real_First100_*` datasets; **full** mode: all presets + `real_*` datasets. Run `compress_datasets.sh` and `build_rs_datasets.sh` first.
 
@@ -526,6 +534,7 @@ cmake/qhull_vendor/              # build qhullstatic_r + qhullcpp only
 cmake/trimesh2/                  # static TriMesh2 library target
 scripts/generate_synthetic_datasets.sh
 scripts/ptsample_datasets.sh
+scripts/compress_ptsample_datasets.sh
 third_party/trimesh2/            # created at configure (gitignored)
 third_party/qhull/               # created at configure (gitignored)
 ```

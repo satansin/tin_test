@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Sample every normalized mesh at several surface resolutions.
-# Writes one point-cloud .ply per mesh. Pack afterward with
-# compress_ptsample_datasets.sh.
+# Pack sampled point-cloud PLY files into .tinply bundles.
+# Run ptsample_datasets.sh first (without --pack).
 #
 # Usage:
-#   ./scripts/ptsample_datasets.sh [small|full]
+#   ./scripts/compress_ptsample_datasets.sh [small|full]
 #
-# Input:  ../tin_exp/<dataset>/norm/
-# Output: ../tin_exp/<dataset>/norm_ptsample_<N>/
+# Input:  ../tin_exp/<dataset>/norm_ptsample_<N>/
+# Output: ../tin_exp/<dataset>/norm_ptsample_<N>_pack/
 
 MODE="${1:-small}"
 
@@ -26,7 +25,7 @@ else
   datasets=("${DATASETS_SMALL[@]}")
 fi
 
-echo ">>> ptsample_datasets.sh"
+echo ">>> compress_ptsample_datasets.sh"
 echo "    mode:   ${MODE}"
 echo "    bin:    ${BIN}"
 echo "    root:   ${EXP_ROOT}"
@@ -36,13 +35,13 @@ echo ""
 for dataset in "${datasets[@]}"; do
   echo "--- ${dataset} ---"
   for num_points in "${POINT_COUNTS[@]}"; do
-    output_dir="$(dataset_ptsample "${dataset}" "${num_points}")"
-    echo "    ${num_points} points -> ${output_dir}"
+    input_dir="$(dataset_ptsample "${dataset}" "${num_points}")"
+    output_dir="$(dataset_ptsample_pack "${dataset}" "${num_points}")"
+    echo "    ${num_points} points: ${input_dir} -> ${output_dir}"
     mkdir -p "${output_dir}"
-    "${BIN}" ptsample \
-      --input-dir "$(dataset_norm "${dataset}")" \
-      --output-dir "${output_dir}" \
-      --num-points "${num_points}"
+    "${BIN}" compress \
+      --input-dir "${input_dir}" \
+      --output-dir "${output_dir}"
   done
 done
 
