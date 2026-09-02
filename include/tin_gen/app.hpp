@@ -15,6 +15,7 @@ enum class AppCommand {
   Distance,
   PointSample,
   PairwiseDistance,
+  TopK,
   Validate
 };
 
@@ -27,6 +28,7 @@ struct AppRequest {
   DistanceConfig distance_config;
   PointSampleConfig point_sample_config;
   PairwiseDistanceConfig pairwise_distance_config;
+  TopKConfig topk_config;
   ValidateConfig validate_config;
 };
 

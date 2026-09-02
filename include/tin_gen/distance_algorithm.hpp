@@ -5,7 +5,7 @@
 
 namespace tin_gen {
 
-enum class DistanceAlgorithm { Vertex };
+enum class DistanceAlgorithm { Vertex, Chamfer, Hausdorff };
 
 [[nodiscard]] DistanceAlgorithm parse_distance_algorithm(std::string_view name);
 [[nodiscard]] std::string_view distance_algorithm_name(DistanceAlgorithm algorithm);

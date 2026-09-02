@@ -18,7 +18,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${ROOT}/scripts/datasets_common.sh"
 BIN="${TIN_TEST_BIN:-${ROOT}/build/release/tin_test}"
 
-POINT_COUNTS=(512 1024 2048)
+POINT_COUNTS=(512 1024 2048 4096)
 
 if [[ "${MODE}" == "full" ]]; then
   datasets=("${DATASETS_FULL[@]}")

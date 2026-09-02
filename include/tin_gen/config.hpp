@@ -101,6 +101,22 @@ struct PairwiseDistanceConfig {
 [[nodiscard]] std::optional<PairwiseDistanceConfig> parse_pairwise_distance_config(int argc,
                                                                                    char* argv[]);
 
+struct TopKConfig {
+  std::string input_dir;   // dataset folder or pack
+  std::string query_path;  // query PLY
+  std::size_t k = 1;
+  DistanceAlgorithm algorithm = DistanceAlgorithm::Vertex;
+  std::size_t max_objects = 0;  // 0 = all
+  std::optional<std::string> rs_dir;
+  std::optional<std::string> kd_dir;
+  std::string output_path;  // optional; empty = stdout only
+  /// When false (default), skip a dataset mesh whose stem matches the query stem.
+  bool include_self = false;
+};
+
+/// Parse options for the topk (linear top-k) command. Returns nullopt on -h/--help.
+[[nodiscard]] std::optional<TopKConfig> parse_topk_config(int argc, char* argv[]);
+
 struct ValidateConfig {
   std::string input_dir;
   std::string report_path;   // optional; empty = no report file

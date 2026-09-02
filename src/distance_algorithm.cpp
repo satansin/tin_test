@@ -22,6 +22,12 @@ DistanceAlgorithm parse_distance_algorithm(const std::string_view name) {
   if (normalized == "vertex" || normalized == "vertices") {
     return DistanceAlgorithm::Vertex;
   }
+  if (normalized == "chamfer") {
+    return DistanceAlgorithm::Chamfer;
+  }
+  if (normalized == "hausdorff" || normalized == "haus") {
+    return DistanceAlgorithm::Hausdorff;
+  }
   throw std::invalid_argument("Unknown distance algorithm: " + std::string(name));
 }
 
@@ -29,6 +35,10 @@ std::string_view distance_algorithm_name(const DistanceAlgorithm algorithm) {
   switch (algorithm) {
     case DistanceAlgorithm::Vertex:
       return "vertex";
+    case DistanceAlgorithm::Chamfer:
+      return "chamfer";
+    case DistanceAlgorithm::Hausdorff:
+      return "hausdorff";
   }
   return "vertex";
 }

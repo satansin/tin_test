@@ -37,7 +37,7 @@ Examples:
   ./scripts/generate_synthetic_datasets.sh --log-only output_synthetic/generation.log
   ./scripts/generate_synthetic_datasets.sh --log-only output_synthetic/full.log full
 
-See README.md for disk usage estimates.
+See README.html for disk usage estimates.
 EOF
 }
 

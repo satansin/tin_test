@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <stdexcept>
+#include <string_view>
 #include <vector>
 
 namespace tin_gen {
@@ -24,33 +25,51 @@ void print_distance_result(const std::string_view index_name, const VertexDistan
             << "  distance: " << result.distance << '\n';
 }
 
-int run_distance_vertex_compare(const DistanceConfig& config) {
+template <typename SpatialIndex>
+VertexDistanceResult compute_pointset_distance(const DistanceAlgorithm algorithm,
+                                               const std::vector<Point>& points_a,
+                                               const SpatialIndex& tree_b,
+                                               const std::vector<Point>& points_b,
+                                               const SpatialIndex& tree_a) {
+  switch (algorithm) {
+    case DistanceAlgorithm::Vertex:
+      return symmetric_vertex_distance_index(points_a, tree_b, points_b, tree_a);
+    case DistanceAlgorithm::Chamfer:
+      return symmetric_chamfer_distance_index(points_a, tree_b, points_b, tree_a);
+    case DistanceAlgorithm::Hausdorff:
+      return symmetric_hausdorff_distance_index(points_a, tree_b, points_b, tree_a);
+  }
+  throw std::logic_error("distance: unhandled algorithm.");
+}
+
+int run_distance_pointset_compare(const DistanceConfig& config,
+                                  const std::string_view algorithm_name) {
   const TinMesh mesh_a = read_ply(config.path_a);
   const TinMesh mesh_b = read_ply(config.path_b);
 
-  const std::vector<Point> vertices_a = tin_mesh_vertices(mesh_a);
-  const std::vector<Point> vertices_b = tin_mesh_vertices(mesh_b);
+  const std::vector<Point> points_a = tin_mesh_vertices(mesh_a);
+  const std::vector<Point> points_b = tin_mesh_vertices(mesh_b);
 
-  std::cout << "distance compare (algorithm=vertex)\n"
-            << "  A: " << config.path_a << " (" << vertices_a.size() << " vertices)\n"
-            << "  B: " << config.path_b << " (" << vertices_b.size() << " vertices)\n"
-            << "  queries per direction: " << vertices_a.size() << " + " << vertices_b.size()
-            << " = " << (vertices_a.size() + vertices_b.size()) << '\n';
+  std::cout << "distance compare (algorithm=" << algorithm_name << ")\n"
+            << "  A: " << config.path_a << " (" << points_a.size() << " points)\n"
+            << "  B: " << config.path_b << " (" << points_b.size() << " points)\n"
+            << "  queries per direction: " << points_a.size() << " + " << points_b.size() << " = "
+            << (points_a.size() + points_b.size()) << '\n';
 
   CpuTimer cpu_kd_build;
   WallTimer wall_kd_build;
   cpu_kd_build.start();
   wall_kd_build.start();
-  const KdTree3d kd_tree_a(vertices_a);
-  const KdTree3d kd_tree_b(vertices_b);
+  const KdTree3d kd_tree_a(points_a);
+  const KdTree3d kd_tree_b(points_b);
   cpu_kd_build.stop();
   wall_kd_build.stop();
   CpuTimer cpu_rs_build;
   WallTimer wall_rs_build;
   cpu_rs_build.start();
   wall_rs_build.start();
-  const RsTree3d rs_tree_a(vertices_a);
-  const RsTree3d rs_tree_b(vertices_b);
+  const RsTree3d rs_tree_a(points_a);
+  const RsTree3d rs_tree_b(points_b);
   cpu_rs_build.stop();
   wall_rs_build.stop();
 
@@ -59,7 +78,7 @@ int run_distance_vertex_compare(const DistanceConfig& config) {
   cpu_kd_compute.start();
   wall_kd_compute.start();
   const VertexDistanceResult kd_result =
-      symmetric_vertex_distance_index(vertices_a, kd_tree_b, vertices_b, kd_tree_a);
+      compute_pointset_distance(config.algorithm, points_a, kd_tree_b, points_b, kd_tree_a);
   cpu_kd_compute.stop();
   wall_kd_compute.stop();
 
@@ -68,7 +87,7 @@ int run_distance_vertex_compare(const DistanceConfig& config) {
   cpu_rs_compute.start();
   wall_rs_compute.start();
   const VertexDistanceResult rs_result =
-      symmetric_vertex_distance_index(vertices_a, rs_tree_b, vertices_b, rs_tree_a);
+      compute_pointset_distance(config.algorithm, points_a, rs_tree_b, points_b, rs_tree_a);
   cpu_rs_compute.stop();
   wall_rs_compute.stop();
 
@@ -93,19 +112,19 @@ int run_distance_vertex_compare(const DistanceConfig& config) {
   return EXIT_SUCCESS;
 }
 
-int run_distance_vertex(const DistanceConfig& config) {
+int run_distance_pointset(const DistanceConfig& config, const std::string_view algorithm_name) {
   const TinMesh mesh_a = read_ply(config.path_a);
   const TinMesh mesh_b = read_ply(config.path_b);
 
-  const std::vector<Point> vertices_a = tin_mesh_vertices(mesh_a);
-  const std::vector<Point> vertices_b = tin_mesh_vertices(mesh_b);
+  const std::vector<Point> points_a = tin_mesh_vertices(mesh_a);
+  const std::vector<Point> points_b = tin_mesh_vertices(mesh_b);
 
   CpuTimer cpu_build;
   WallTimer wall_build;
   cpu_build.start();
   wall_build.start();
-  const RsTree3d rs_tree_a(vertices_a);
-  const RsTree3d rs_tree_b(vertices_b);
+  const RsTree3d rs_tree_a(points_a);
+  const RsTree3d rs_tree_b(points_b);
   cpu_build.stop();
   wall_build.stop();
 
@@ -114,13 +133,13 @@ int run_distance_vertex(const DistanceConfig& config) {
   cpu_compute.start();
   wall_compute.start();
   const VertexDistanceResult result =
-      symmetric_vertex_distance_index(vertices_a, rs_tree_b, vertices_b, rs_tree_a);
+      compute_pointset_distance(config.algorithm, points_a, rs_tree_b, points_b, rs_tree_a);
   cpu_compute.stop();
   wall_compute.stop();
 
-  std::cout << "distance (algorithm=vertex)\n"
-            << "  A: " << config.path_a << " (" << vertices_a.size() << " vertices)\n"
-            << "  B: " << config.path_b << " (" << vertices_b.size() << " vertices)\n"
+  std::cout << "distance (algorithm=" << algorithm_name << ")\n"
+            << "  A: " << config.path_a << " (" << points_a.size() << " points)\n"
+            << "  B: " << config.path_b << " (" << points_b.size() << " points)\n"
             << "  d_A: " << result.d_a << '\n'
             << "  d_B: " << result.d_b << '\n'
             << "  distance: " << result.distance << '\n';
@@ -133,12 +152,15 @@ int run_distance_vertex(const DistanceConfig& config) {
 }  // namespace
 
 int run_distance(const DistanceConfig& config) {
+  const std::string_view algorithm_name = distance_algorithm_name(config.algorithm);
   switch (config.algorithm) {
     case DistanceAlgorithm::Vertex:
+    case DistanceAlgorithm::Chamfer:
+    case DistanceAlgorithm::Hausdorff:
       if (config.compare_spatial_index) {
-        return run_distance_vertex_compare(config);
+        return run_distance_pointset_compare(config, algorithm_name);
       }
-      return run_distance_vertex(config);
+      return run_distance_pointset(config, algorithm_name);
   }
   throw std::logic_error("distance: unhandled algorithm.");
 }

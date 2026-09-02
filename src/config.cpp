@@ -303,6 +303,52 @@ std::optional<PairwiseDistanceConfig> parse_pairwise_distance_config(const int a
   return config;
 }
 
+std::optional<TopKConfig> parse_topk_config(const int argc, char* argv[]) {
+  TopKConfig config;
+
+  for (int i = 0; i < argc; ++i) {
+    const std::string arg = argv[i];
+
+    if (is_help_flag(arg)) {
+      return std::nullopt;
+    }
+    if (arg == "--input-dir" || arg == "-i") {
+      config.input_dir = need_arg_value(argc, argv, i, arg.c_str());
+    } else if (arg == "--query" || arg == "-q") {
+      config.query_path = need_arg_value(argc, argv, i, arg.c_str());
+    } else if (arg == "--k" || arg == "-k") {
+      config.k = static_cast<std::size_t>(std::stoull(need_arg_value(argc, argv, i, arg.c_str())));
+    } else if (arg == "--algorithm") {
+      config.algorithm = parse_distance_algorithm(need_arg_value(argc, argv, i, "--algorithm"));
+    } else if (arg == "--max-objects" || arg == "--limit") {
+      config.max_objects =
+          static_cast<std::size_t>(std::stoull(need_arg_value(argc, argv, i, arg.c_str())));
+    } else if (arg == "--rs-dir" || arg == "-rs") {
+      config.rs_dir = need_arg_value(argc, argv, i, arg.c_str());
+    } else if (arg == "--kd-dir" || arg == "-kd") {
+      config.kd_dir = need_arg_value(argc, argv, i, arg.c_str());
+    } else if (arg == "--output" || arg == "-o") {
+      config.output_path = need_arg_value(argc, argv, i, arg.c_str());
+    } else if (arg == "--include-self") {
+      config.include_self = true;
+    } else if (accepts_positional_input_dir(arg, config.input_dir)) {
+      config.input_dir = arg;
+    } else {
+      throw std::runtime_error("Unknown argument: " + arg);
+    }
+  }
+
+  require_input_dir(config.input_dir, "topk");
+  if (config.query_path.empty()) {
+    throw std::runtime_error("topk requires --query PATH");
+  }
+  if (config.k == 0) {
+    throw std::runtime_error("topk requires --k N with N > 0");
+  }
+
+  return config;
+}
+
 std::optional<ValidateConfig> parse_validate_config(const int argc, char* argv[]) {
   ValidateConfig config;
 

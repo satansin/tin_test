@@ -151,6 +151,40 @@ double vertex_pair_distance(const MeshIndex& a, const MeshIndex& b) {
   return result.distance;
 }
 
+double chamfer_pair_distance(const MeshIndex& a, const MeshIndex& b) {
+  if (a.index_kind == SpatialIndexKind::Kd || b.index_kind == SpatialIndexKind::Kd) {
+    const VertexDistanceResult result =
+        symmetric_chamfer_distance(a.vertices, b.kd_tree, b.vertices, a.kd_tree);
+    return result.distance;
+  }
+  const VertexDistanceResult result =
+      symmetric_chamfer_distance_index(a.vertices, b.rs_tree, b.vertices, a.rs_tree);
+  return result.distance;
+}
+
+double hausdorff_pair_distance(const MeshIndex& a, const MeshIndex& b) {
+  if (a.index_kind == SpatialIndexKind::Kd || b.index_kind == SpatialIndexKind::Kd) {
+    const VertexDistanceResult result =
+        symmetric_hausdorff_distance(a.vertices, b.kd_tree, b.vertices, a.kd_tree);
+    return result.distance;
+  }
+  const VertexDistanceResult result =
+      symmetric_hausdorff_distance_index(a.vertices, b.rs_tree, b.vertices, a.rs_tree);
+  return result.distance;
+}
+
+double pair_distance(const MeshIndex& a, const MeshIndex& b, const DistanceAlgorithm algorithm) {
+  switch (algorithm) {
+    case DistanceAlgorithm::Vertex:
+      return vertex_pair_distance(a, b);
+    case DistanceAlgorithm::Chamfer:
+      return chamfer_pair_distance(a, b);
+    case DistanceAlgorithm::Hausdorff:
+      return hausdorff_pair_distance(a, b);
+  }
+  throw std::logic_error(std::string(kCommand) + ": unhandled algorithm.");
+}
+
 class PairwiseMatrixProgress {
  public:
   explicit PairwiseMatrixProgress(std::size_t num_meshes,
@@ -198,11 +232,10 @@ class PairwiseMatrixProgress {
   std::chrono::steady_clock::time_point start_;
 };
 
-void write_pairwise_matrix_vertex(const std::vector<MeshIndex>& meshes,
-                                  const DistanceAlgorithm algorithm,
-                                  const fs::path& output_path, SpatialIndexKind index_kind,
-                                  const std::optional<fs::path>& index_dir,
-                                  const std::optional<fs::path>& index_manifest) {
+void write_pairwise_matrix(const std::vector<MeshIndex>& meshes, const DistanceAlgorithm algorithm,
+                           const fs::path& output_path, SpatialIndexKind index_kind,
+                           const std::optional<fs::path>& index_dir,
+                           const std::optional<fs::path>& index_manifest) {
   const std::size_t n = meshes.size();
   std::vector<std::vector<double>> matrix(n, std::vector<double>(n, 0.0));
 
@@ -211,7 +244,7 @@ void write_pairwise_matrix_vertex(const std::vector<MeshIndex>& meshes,
   for (std::size_t i = 0; i < n; ++i) {
     matrix[i][i] = 0.0;
     for (std::size_t j = i + 1; j < n; ++j) {
-      const double distance = vertex_pair_distance(meshes[i], meshes[j]);
+      const double distance = pair_distance(meshes[i], meshes[j], algorithm);
       matrix[i][j] = distance;
       matrix[j][i] = distance;
       matrix_progress.mark_pair_completed(++pairs_done);
@@ -365,8 +398,10 @@ int run_pairwise_distance(const PairwiseDistanceConfig& config) {
 
   switch (config.algorithm) {
     case DistanceAlgorithm::Vertex:
-      write_pairwise_matrix_vertex(meshes, config.algorithm, output_path, index_kind, index_dir,
-                                   index_manifest);
+    case DistanceAlgorithm::Chamfer:
+    case DistanceAlgorithm::Hausdorff:
+      write_pairwise_matrix(meshes, config.algorithm, output_path, index_kind, index_dir,
+                            index_manifest);
       break;
     default:
       throw std::logic_error(std::string(kCommand) + ": unhandled algorithm.");

@@ -44,6 +44,7 @@ add_library(tin_gen
   src/commands/index_vertices.cpp
   src/commands/distance.cpp
   src/commands/pairwise_distance.cpp
+  src/commands/topk.cpp
   src/commands/point_sample.cpp
   src/commands/validate.cpp
   src/kd_tree.cpp

@@ -7,6 +7,7 @@
 #include "tin_gen/commands/point_sample.hpp"
 #include "tin_gen/commands/normalize.hpp"
 #include "tin_gen/commands/compress.hpp"
+#include "tin_gen/commands/topk.hpp"
 #include "tin_gen/commands/validate.hpp"
 
 #include <algorithm>
@@ -58,6 +59,9 @@ AppCommand parse_app_command(const std::string_view name) {
       normalized == "pd") {
     return AppCommand::PairwiseDistance;
   }
+  if (normalized == "topk" || normalized == "linear_topk" || normalized == "ltopk") {
+    return AppCommand::TopK;
+  }
   if (normalized == "validate" || normalized == "check") {
     return AppCommand::Validate;
   }
@@ -82,6 +86,8 @@ std::string_view app_command_name(const AppCommand command) {
       return "ptsample";
     case AppCommand::PairwiseDistance:
       return "pairwise_distance";
+    case AppCommand::TopK:
+      return "topk";
     case AppCommand::Validate:
       return "validate";
   }
@@ -99,9 +105,10 @@ void print_usage(const char* program) {
             << "  distance (dist)    Dissimilarity between two PLY meshes\n"
             << "  ptsample            Sample points across TIN faces in a folder\n"
             << "  pairwise_distance (pd)  All pairwise dissimilarities in a folder\n"
+            << "  topk (linear_topk)      Linear-scan top-k retrieval for one query\n"
             << "  validate (check)        Check meshes in a folder for invalid faces/vertices\n"
             << "  help                    Show this help\n\n"
-            << "Command aliases: gen, norm, pack, kd, rs, dist, ptsample, pd, check\n\n"
+            << "Command aliases: gen, norm, pack, kd, rs, dist, ptsample, pd, topk, check\n\n"
             << "Generate options:\n"
             << "  --format FORMAT     Output mesh format: ply | obj (default: ply)\n"
             << "  -o, --output-dir DIR   Output directory (required)\n"
@@ -126,7 +133,7 @@ void print_usage(const char* program) {
             << "  --combined             Write split bundles + manifest (5000 indexes per file)\n\n"
             << "Distance options:\n"
             << "  A.ply B.ply            Two mesh paths (or --a / --b)\n"
-            << "  --algorithm NAME       vertex (default)\n"
+            << "  --algorithm NAME       vertex | chamfer | hausdorff (default: vertex)\n"
             << "  --compare-index        Build KD-tree and R*-tree; print side-by-side timings\n\n"
             << "Point-sampling options:\n"
             << "  -i, --input-dir DIR    Input folder containing .ply files (required)\n"
@@ -140,10 +147,20 @@ void print_usage(const char* program) {
             << "Pairwise_distance options:\n"
             << "  -i, --input-dir DIR    Folder containing .ply files (required)\n"
             << "  -o, --output PATH      Matrix file (required)\n"
-            << "  --algorithm NAME       vertex (default)\n"
+            << "  --algorithm NAME       vertex | chamfer | hausdorff (default: vertex)\n"
             << "  --max-objects N        Use at most N meshes (default: all)\n"
             << "  --rs-dir DIR, -rs DIR  Use prebuilt <stem>.rstree files for NN search (default index)\n"
             << "  --kd-dir DIR, -kd DIR  Use prebuilt <stem>.kdtree files for NN search\n\n"
+            << "Topk options:\n"
+            << "  -i, --input-dir DIR    Dataset folder or pack (required)\n"
+            << "  -q, --query PATH       Query PLY path (required)\n"
+            << "  -k, --k N              Return top N nearest (required, N > 0)\n"
+            << "  --algorithm NAME       vertex | chamfer | hausdorff (default: vertex)\n"
+            << "  --max-objects N        Scan at most N dataset meshes (default: all)\n"
+            << "  --rs-dir DIR, -rs DIR  Use prebuilt R*-trees for NN search\n"
+            << "  --kd-dir DIR, -kd DIR  Use prebuilt KD-trees for NN search\n"
+            << "  -o, --output PATH      Optional results file\n"
+            << "  --include-self         Keep a dataset mesh with the same stem as the query\n\n"
             << "Validate options:\n"
             << "  -i, --input-dir DIR    Folder or pack directory to check (required)\n"
             << "  -o, --report PATH      Optional TSV report of invalid meshes\n"
@@ -160,6 +177,8 @@ void print_usage(const char* program) {
             << "-o output/samples -n 10000 --seed 42\n"
             << "  " << program << " pd --input-dir output/normalized "
             << "--output output/pairwise_distances_vertex.txt\n"
+            << "  " << program << " topk -i output/normalized -q output/normalized/object_1.ply "
+            << "-k 5 --algorithm chamfer\n"
             << "  " << program << " validate -i output/normalized "
             << "-o output/validate_report.tsv\n";
 }
@@ -245,6 +264,13 @@ std::optional<AppRequest> parse_app_request(const int argc, char* argv[]) {
       return std::nullopt;
     }
     request.pairwise_distance_config = *config;
+  } else if (request.command == AppCommand::TopK) {
+    const auto config = parse_topk_config(argc - option_start, argv + option_start);
+    if (!config) {
+      print_usage(argv[0]);
+      return std::nullopt;
+    }
+    request.topk_config = *config;
   } else if (request.command == AppCommand::Validate) {
     const auto config = parse_validate_config(argc - option_start, argv + option_start);
     if (!config) {
@@ -273,6 +299,8 @@ int run_app(const AppRequest& request) {
       return run_point_sample(request.point_sample_config);
     case AppCommand::PairwiseDistance:
       return run_pairwise_distance(request.pairwise_distance_config);
+    case AppCommand::TopK:
+      return run_topk(request.topk_config);
     case AppCommand::Validate:
       return run_validate(request.validate_config);
   }

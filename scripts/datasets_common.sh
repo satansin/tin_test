@@ -6,7 +6,7 @@
 #   norm_pack/  compressed bundles + ply_merge_manifest.txt
 #   norm_rs/    R*-tree indexes (rs_merge_manifest.txt, merged_*.tinrs)
 #   norm_kd/    KD-tree indexes (optional)
-#   norm_ptsample_<N>/     sampled point-cloud .ply files
+#   norm_ptsample_<N>/     sampled point-cloud .ply files (N in {512,1024,2048,4096})
 #   norm_ptsample<N>_pack/ packed sampled bundles + ply_merge_manifest.txt
 #   norm_ptsample<N>_rs/   R*-tree indexes for sampled packs
 #   norm_pd/    pairwise distance matrix output
@@ -26,6 +26,9 @@ dataset_ptsample() { echo "${EXP_ROOT}/$1/norm_ptsample_$2"; }
 dataset_ptsample_pack() { echo "${EXP_ROOT}/$1/norm_ptsample$2_pack"; }
 dataset_ptsample_rs() { echo "${EXP_ROOT}/$1/norm_ptsample$2_rs"; }
 dataset_pd_file() { echo "${EXP_ROOT}/$1/norm_pd/pairwise_distances_vertex.txt"; }
+dataset_pd_chamfer_ptsample_file() {
+  echo "${EXP_ROOT}/$1/norm_pd/pairwise_distances_chamfer_ptsample$2.txt"
+}
 
 synth_gen_to_dataset() { echo "synthetic_$1"; }
 

@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tin_test</title>
+<style>
+:root {
+  --bg: #f7f5f1;
+  --ink: #1c1b19;
+  --muted: #5b564e;
+  --accent: #1f4d3a;
+  --code-bg: #ece7df;
+  --border: #d4cdc2;
+  --card: #fffdf8;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at top left, #efe8dc 0, transparent 40%),
+    linear-gradient(180deg, #faf7f2, var(--bg));
+  font: 16px/1.55 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+}
+main {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 2.5rem 1.25rem 4rem;
+}
+h1, h2, h3 {
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+  line-height: 1.2;
+  color: var(--accent);
+}
+h1 { font-size: 2.4rem; margin: 0 0 0.75rem; letter-spacing: -0.02em; }
+h2 { font-size: 1.55rem; margin-top: 2.4rem; padding-top: 0.4rem; border-top: 1px solid var(--border); }
+h3 { font-size: 1.15rem; margin-top: 1.6rem; color: var(--ink); }
+p, li { max-width: 70ch; }
+a { color: #174c8d; }
+code, pre {
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+code {
+  background: var(--code-bg);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+pre {
+  background: #1f2420;
+  color: #f4f1ea;
+  padding: 1rem 1.1rem;
+  border-radius: 10px;
+  overflow-x: auto;
+  border: 1px solid #2d3530;
+}
+pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0 1.4rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  font-size: 0.95rem;
+}
+th, td {
+  text-align: left;
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+th {
+  background: #efe8dc;
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+  font-weight: 600;
+}
+tr:last-child td { border-bottom: none; }
+blockquote {
+  margin: 1rem 0;
+  padding: 0.7rem 1rem;
+  border-left: 4px solid var(--accent);
+  background: #efeae1;
+  color: var(--muted);
+}
+.lead { font-size: 1.08rem; color: var(--muted); }
+.math { font-family: "Times New Roman", Times, serif; }
+nav.toc {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem 1.2rem;
+  margin: 1.5rem 0 2rem;
+}
+nav.toc h2 {
+  margin: 0 0 0.6rem;
+  border: 0;
+  padding: 0;
+  font-size: 1rem;
+}
+nav.toc ul { margin: 0; padding-left: 1.1rem; }
+nav.toc li { margin: 0.2rem 0; }
+</style>
+</head>
+<body>
+<main>
+<h1 id="tin-test">tin_test</h1>
+<p class="lead">Synthetic 3D TIN (triangular irregular network) generator. Each mesh is the convex hull of a random point set with <strong>exactly</strong> the requested number of hull vertices.</p>
+<p><strong>Dependencies:</strong> <a href="https://github.com/Forceflow/trimesh2">TriMesh2</a> and <a href="https://github.com/qhull/qhull">Qhull</a> are downloaded into <code>third_party/</code> on first configure and built with the project. No system CGAL/Qhull/TriMesh2 install is required.</p>
+<h2 id="prerequisites">Prerequisites</h2>
+<table>
+<thead><tr><th>Tool</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td>CMake ≥ 3.21</td><td>Configure and build</td></tr>
+<tr><td>Ninja (recommended)</td><td>Fast builds</td></tr>
+<tr><td>C++20 compiler</td><td><code>g++</code> 10+, Clang 10+, or Apple Clang</td></tr>
+<tr><td>Git</td><td>Fetch <code>third_party/trimesh2</code> and <code>third_party/qhull</code> once</td></tr>
+</tbody>
+</table>
+<h3 id="macos-homebrew">macOS (Homebrew)</h3>
+<pre><code class="language-bash">brew install cmake ninja git
+xcode-select --install   # if needed</code></pre>
+<h3 id="debian-ubuntu">Debian / Ubuntu</h3>
+<pre><code class="language-bash">sudo apt update
+sudo apt install cmake ninja-build g++ git</code></pre>
+<h3 id="centos-rocky-linux-almalinux">CentOS / Rocky Linux / AlmaLinux</h3>
+<p><strong>Stream 8 / 9 / Rocky 9 / Alma 9</strong> (recommended):</p>
+<pre><code class="language-bash">sudo dnf install cmake ninja-build gcc-c++ git</code></pre>
+<p><strong>CentOS 7</strong> (end-of-life; needs a newer compiler for C++20):</p>
+<pre><code class="language-bash">sudo yum install centos-release-scl
+sudo yum install devtoolset-11-gcc-c++ cmake3 ninja-build git
+scl enable devtoolset-11 bash
+# use cmake3 if `cmake` is still too old; CMake ≥ 3.21 is required</code></pre>
+<p>If <code>cmake</code> is older than 3.21, install a newer CMake from <a href="https://cmake.org/download/">Kitware</a> or your module system, then use that binary.</p>
+<h2 id="build">Build</h2>
+<p>First configure downloads vendored libraries (needs network):</p>
+<pre><code class="language-bash">cmake --preset release
+cmake --build --preset release</code></pre>
+<p>Binary: <code>build/release/tin_test</code></p>
+<p>Without presets:</p>
+<pre><code class="language-bash">cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build/release -j</code></pre>
+<h3 id="offline-air-gapped">Offline / air-gapped</h3>
+<p>On a connected machine, run <code>cmake</code> once so <code>third_party/trimesh2</code> and <code>third_party/qhull</code> exist. Copy the whole repo (including those folders) to the offline host, then configure and build there.</p>
+<h3 id="clean-reconfigure">Clean reconfigure</h3>
+<p>If dependencies or CMake logic changed:</p>
+<pre><code class="language-bash">rm -rf build/release third_party/trimesh2 third_party/qhull
+cmake --preset release &amp;&amp; cmake --build --preset release</code></pre>
+<h2 id="run">Run</h2>
+<p>No arguments prints usage.</p>
+<pre><code class="language-bash">./build/release/tin_test
+./scripts/run_samples.sh
+./build/release/tin_test generate --output-dir output_synthetic/example
+./build/release/tin_test generate --format obj --seed 42 --num-objects 5 \
+  --output-dir output_synthetic/example_obj
+./build/release/tin_test normalize --input-dir output_synthetic/example \
+  --output-dir output_synthetic/example_normalized
+./build/release/tin_test ptsample -i output_synthetic/example_normalized \
+  -o output_synthetic/example_samples -n 10000 --seed 42
+./build/release/tin_test help</code></pre>
+<p>The sample-specific <code>sample_*</code> paths are held by <code>scripts/run_samples.sh</code>; the CLI requires explicit output paths.</p>
+<h3 id="generate-options">Generate options</h3>
+<table>
+<thead><tr><th>Flag</th><th>Default</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>--format FORMAT</code></td><td><code>ply</code></td><td><code>ply</code> or <code>obj</code></td></tr>
+<tr><td><code>-o, --output-dir DIR</code></td><td>(required)</td><td>Output directory</td></tr>
+<tr><td><code>--num-objects N</code></td><td><code>10</code></td><td>Number of meshes</td></tr>
+<tr><td><code>--num-vertices-per-object N</code></td><td><code>200</code></td><td>Exact hull vertex count per mesh</td></tr>
+<tr><td><code>--scale VALUE</code></td><td><code>1.0</code></td><td>Coordinate scale</td></tr>
+<tr><td><code>--seed N</code></td><td><code>0</code></td><td>RNG seed (<code>0</code> = random)</td></tr>
+<tr><td><code>-q, --quiet</code></td><td>off</td><td>Progress every 1000 meshes instead of per file</td></tr>
+</tbody>
+</table>
+<p>Output: <code>&lt;output-dir&gt;/object_1.ply</code>, <code>object_2.ply</code>, … Meshes are written as they are generated (not all held in RAM). The command prints CPU and wall time.</p>
+<p><strong>Large datasets (e.g. 100k meshes):</strong> use a <strong>Release</strong> build and <code>--quiet</code>:</p>
+<pre><code class="language-bash">./build/release/tin_test generate --num-objects 10000 --num-vertices-per-object 200 \
+  --output-dir output_synthetic/objects10000_vertices200 --seed 42 --quiet</code></pre>
+<p>The synthetic dataset script enables <code>--quiet</code> automatically.</p>
+<h3 id="normalize-options">Normalize options</h3>
+<p>Translates each mesh so the vertex mean is at the origin (subtracts the per-mesh mean). <strong>No scaling</strong> is applied. Output is written as ASCII PLY.</p>
+<p>Meshes that fail face-sampling validity checks (empty geometry, out-of-range face indices, or no non-degenerate faces) are skipped with a warning and are not written to the output folder. Read/parse failures are skipped the same way.</p>
+<table>
+<thead><tr><th>Flag</th><th>Default</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>-i, --input-dir DIR</code></td><td>(required)</td><td>Folder containing <code>.ply</code> files</td></tr>
+<tr><td><code>-o, --output-dir DIR</code></td><td>(required)</td><td>Output folder for normalized <code>.ply</code> files</td></tr>
+<tr><td><code>--max-objects N</code></td><td>all</td><td>Normalize at most N meshes</td></tr>
+</tbody>
+</table>
+<h3 id="compress-ply-merge">Compress (PLY merge)</h3>
+<p>Concatenates per-mesh <code>.ply</code> files into bundle files (<code>.tinply</code>, default max <strong>5000</strong> meshes per bundle) plus <code>ply_merge_manifest.txt</code> with byte offsets for each original file. Intended for large normalized datasets (e.g. ShapeNetCore). Bundles store original PLY bytes unchanged.</p>
+<table>
+<thead><tr><th>Flag</th><th>Default</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>-i, --input-dir DIR</code></td><td>(required)</td><td>Folder containing <code>.ply</code> files</td></tr>
+<tr><td><code>-o, --output-dir DIR</code></td><td>(required)</td><td>Output folder for bundles + manifest</td></tr>
+<tr><td><code>--max-meshes-per-bundle N</code></td><td><code>5000</code></td><td>Start a new bundle after N meshes</td></tr>
+<tr><td><code>--max-objects N</code></td><td>all</td><td>Merge at most N meshes</td></tr>
+</tbody>
+</table>
+<pre><code class="language-bash">./build/release/tin_test compress -i ../tin_exp/real_First100_ShapeNetCore/norm \
+  -o ../tin_exp/real_First100_ShapeNetCore/norm_pack</code></pre>
+<p>C++ API: <code>write_ply_merge()</code>, <code>load_ply_merge_manifest()</code>, <code>read_ply_from_merge()</code> in <code>include/tin_gen/ply_merge.hpp</code>.</p>
+<p>Folder commands (<code>normalize</code>, <code>compress</code>, <code>kd</code>, <code>rs</code>, <code>ptsample</code>, <code>validate</code>, <code>pairwise_distance</code>) list every matching mesh file in the input directory (<code>.ply</code> by default), sorted by numeric <code>name_NUMBER</code> suffix when present (<code>object_1</code>, <code>object_2</code>, …, <code>object_10</code>), otherwise lexicographic by filename. A <code>metadata.txt</code> file in the folder is ignored.</p>
+<h3 id="index-build-options-kd-rs">Index build options (<code>kd</code> / <code>rs</code>)</h3>
+<p>Both commands share the same flags; defaults depend on the command.</p>
+<table>
+<thead><tr><th>Flag</th><th><code>kd</code> default</th><th><code>rs</code> default</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>-i, --input-dir DIR</code></td><td>(required)</td><td>(required)</td><td>Folder containing <code>.ply</code> files</td></tr>
+<tr><td><code>-o, --output-dir DIR</code></td><td>(required)</td><td>(required)</td><td>Output directory</td></tr>
+<tr><td><code>--max-objects N</code></td><td>all</td><td>all</td><td>Process at most N meshes</td></tr>
+<tr><td><code>--combined</code></td><td>off</td><td>off</td><td>Write split bundles + manifest (5000 indexes per <code>merged_NNN</code> file)</td></tr>
+</tbody>
+</table>
+<p><strong><code>rs</code></strong> builds an **R*-tree** index (default spatial index for <code>distance</code> / <code>pairwise_distance</code>). Each <code>object_N.ply</code> → <code>object_N.rstree</code> (<code>TINRSV1</code>), or with <code>--combined</code>: <code>merged_000.tinrs</code>, … plus <code>rs_merge_manifest.txt</code> (5000 trees per bundle, same layout as PLY pack).</p>
+<p><strong><code>kd</code></strong> builds a <strong>KD-tree</strong> index. Each <code>object_N.ply</code> → <code>object_N.kdtree</code> (<code>TINKDV1</code>), or with <code>--combined</code>: <code>merged_000.tinkd</code>, … plus <code>kd_merge_manifest.txt</code>.</p>
+<pre><code class="language-bash">./build/release/tin_test rs --input-dir sample_normalized \
+  --output-dir sample_rsvertices --combined
+./build/release/tin_test kd --input-dir sample_normalized \
+  --output-dir sample_kdvertices --combined</code></pre>
+<h3 id="distance">Distance</h3>
+<p>Dissimilarity between two PLY meshes (or point-cloud PLYs). Select the algorithm with <code>--algorithm</code> (default: <code>vertex</code>).</p>
+<p><strong><code>--algorithm vertex</code></strong> — symmetric mean RMS nearest-neighbor distance on the loaded point set (typically TIN vertices; R*-tree by default):</p>
+<ul><li><span class="math">\(d_A = \sqrt{\frac{1}{|A|}\sum_{u \in A} \|u - \mathrm{NN}_B(u)\|^2}\)</span></li><li><span class="math">\(d_B = \sqrt{\frac{1}{|B|}\sum_{v \in B} \|v - \mathrm{NN}_A(v)\|^2}\)</span></li><li><strong>distance</strong> = <span class="math">\((d_A + d_B) / 2\)</span></li></ul>
+<pre><code class="language-bash">./build/release/tin_test distance sample_normalized/object_1.ply sample_normalized/object_2.ply
+./build/release/tin_test distance --algorithm vertex A.ply B.ply</code></pre>
+<p>Core API: <code>symmetric_vertex_distance()</code> in <code>include/tin_gen/vertex_distance.hpp</code>.</p>
+<p><strong><code>--algorithm chamfer</code></strong> — classic symmetric mean L2 Chamfer on the loaded points (use equal-resolution surface ptsamples for surface Chamfer):</p>
+<ul><li><span class="math">\(d_A = \frac{1}{|A|}\sum_{u \in A} \|u - \mathrm{NN}_B(u)\|\)</span></li><li><span class="math">\(d_B = \frac{1}{|B|}\sum_{v \in B} \|v - \mathrm{NN}_A(v)\|\)</span></li><li><strong>chamfer</strong> = <span class="math">\((d_A + d_B) / 2\)</span></li></ul>
+<pre><code class="language-bash">./build/release/tin_test distance --algorithm chamfer ptsample_a.ply ptsample_b.ply</code></pre>
+<p>Core API: <code>symmetric_chamfer_distance()</code> / <code>symmetric_chamfer_distance_index()</code> in <code>include/tin_gen/vertex_distance.hpp</code>.</p>
+<p><strong><code>--algorithm hausdorff</code></strong> — symmetric Hausdorff on the loaded points (Proposal A: same point cloud / ptsample input as Chamfer; aggregation is max instead of mean):</p>
+<ul><li><span class="math">\(d_A = \max_{u \in A} \|u - \mathrm{NN}_B(u)\|\)</span></li><li><span class="math">\(d_B = \max_{v \in B} \|v - \mathrm{NN}_A(v)\|\)</span></li><li><strong>hausdorff</strong> = <span class="math">\(\max(d_A, d_B)\)</span></li></ul>
+<pre><code class="language-bash">./build/release/tin_test distance --algorithm hausdorff ptsample_a.ply ptsample_b.ply</code></pre>
+<p>Core API: <code>symmetric_hausdorff_distance()</code> / <code>symmetric_hausdorff_distance_index()</code> in <code>include/tin_gen/vertex_distance.hpp</code>.</p>
+<h3 id="point-sampling">Point sampling</h3>
+<p><code>ptsample</code> samples points uniformly over the surfaces of all PLY meshes in an input folder. The requested total number of points is written per mesh to the output folder as point-cloud PLY files by default; <code>--format obj</code> is also supported. Faces are selected proportionally to area and each selected face is sampled uniformly using barycentric coordinates.</p>
+<pre><code class="language-bash">./build/release/tin_test ptsample \
+  --input-dir sample_normalized \
+  --output-dir sample_points \
+  --num-points 10000 --seed 42</code></pre>
+<p>The input directory, output directory, and <code>--num-points</code> are required. Use <code>--pack</code> to write sampled PLY meshes directly into <code>.tinply</code> bundles and <code>ply_merge_manifest.txt</code>, without creating one output PLY file per mesh:</p>
+<pre><code class="language-bash">./build/release/tin_test ptsample \
+  --input-dir sample_normalized \
+  --output-dir sample_points_pack \
+  --num-points 10000 --seed 42 --pack</code></pre>
+<p>Packed output is PLY-only. The default maximum is 5000 meshes per bundle; use <code>--max-meshes-per-bundle N</code> to change it.</p>
+<h3 id="validate">Validate</h3>
+<p><code>validate</code> (alias <code>check</code>) scans every mesh in an input folder (or pack) and reports problems that break face sampling: unreadable PLY files, empty meshes, faces with out-of-range vertex indices, and meshes with no non-degenerate faces. It continues after failures and exits non-zero if any mesh is invalid.</p>
+<pre><code class="language-bash">./build/release/tin_test validate \
+  --input-dir ../tin_exp/real_ShapeNetCore/norm \
+  --report ../tin_exp/real_ShapeNetCore/validate_report.tsv</code></pre>
+<table>
+<thead><tr><th>Flag</th><th>Default</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>-i, --input-dir DIR</code></td><td>(required)</td><td>Folder or pack directory to check</td></tr>
+<tr><td><code>-o, --report PATH</code></td><td>none</td><td>Optional TSV report (<code>mesh</code> + <code>reason</code>)</td></tr>
+<tr><td><code>--max-objects N</code></td><td>all</td><td>Check at most N meshes</td></tr>
+</tbody>
+</table>
+<h3 id="pairwise-distance">Pairwise_distance</h3>
+<p>Compute all pairwise dissimilarities for <code>.ply</code> files in a folder (same <code>--algorithm</code> as <code>distance</code>, default <code>vertex</code>). For surface Chamfer / Hausdorff experiments use <code>--algorithm chamfer</code> or <code>hausdorff</code> on equal-resolution ptsample packs with matching <code>--rs-dir</code>. Mesh order matches <code>normalize</code> / <code>rs</code> (see above). Matrix entry <code>(i, j)</code> is the distance between object <code>i</code> and object <code>j</code> (0-based indices).</p>
+<p>The output path is required. A sample default is <code>sample_pd/pairwise_distances_&lt;algorithm&gt;.txt</code> (e.g. <code>pairwise_distances_vertex.txt</code>), supplied by <code>scripts/run_samples.sh</code>. The comment header lists object order, then <code>n</code>, then <code>n</code> rows of <code>n</code> space-separated values.</p>
+<pre><code class="language-bash">./build/release/tin_test pairwise_distance -i sample_normalized -o sample_pd/pairwise_distances_vertex.txt
+./build/release/tin_test rs --input-dir sample_normalized --output-dir sample_rsvertices --combined
+./build/release/tin_test pd -i sample_normalized --rs-dir sample_rsvertices \
+  -o sample_pd/pairwise_distances_vertex.txt</code></pre>
+<p>With <code>--rs-dir</code> (or <code>-rs</code>), R*-trees are loaded from that folder: if <code>rs_merge_manifest.txt</code> exists (<code>rs --combined</code>), trees are read from split <code>merged_*.tinrs</code> bundles; otherwise each <code>object_N.rstree</code> is loaded separately. Without <code>--rs-dir</code>, in-memory R*-trees are built before the matrix; console output includes separate timing for <strong>rs build</strong> / <strong>rs load</strong> and <strong>matrix</strong> computation. Use <code>--kd-dir</code> (or <code>-kd</code>) to load KD-trees instead (<code>--rs-dir</code> and <code>--kd-dir</code> are mutually exclusive).</p>
+<h3 id="topk">Topk (linear scan)</h3>
+<p><code>topk</code> (aliases <code>linear_topk</code>, <code>ltopk</code>) ranks dataset meshes by distance to one query PLY and returns the top <code>k</code>. Supports the same <code>--algorithm</code> values as <code>distance</code> / <code>pd</code>, and optional <code>--rs-dir</code> / <code>--kd-dir</code>. By default a dataset mesh whose stem matches the query stem is skipped; pass <code>--include-self</code> to keep it.</p>
+<pre><code class="language-bash">./build/release/tin_test topk \
+  -i sample_points \
+  -q sample_points/object_1.ply \
+  -k 5 --algorithm hausdorff
+./build/release/tin_test topk \
+  -i ../tin_exp/real_First100_ModelNet40/norm_ptsample4096_pack \
+  --rs-dir ../tin_exp/real_First100_ModelNet40/norm_ptsample4096_rs \
+  -q query_ptsample.ply \
+  -k 5 --algorithm chamfer -o topk_chamfer.txt</code></pre>
+<p>Command aliases: <code>gen</code> (generate), <code>norm</code> (normalize), <code>kd</code> (kdvertices), <code>rs</code>, <code>dist</code> (distance), <code>pd</code> (pairwise_distance), <code>topk</code> (linear_topk), <code>check</code> (validate).</p>
+<h2 id="experiment-dataset-scripts-tin-exp">Experiment dataset scripts (<code>../tin_exp/</code>)</h2>
+<p>Requires a sibling <code>tin_exp</code> directory. Uses <code>build/release/tin_test</code> when present, else <code>build/debug</code> (override with <code>TIN_TEST_BIN</code>).</p>
+<h3 id="real-dataset-statistics">Real dataset statistics</h3>
+<p>Counts and formats for the four real-world datasets used in experiments. Raw sources live under <code>datasets_raw/</code>; processed outputs live under per-dataset folders (e.g. <code>real_First100_ModelNet40/norm/</code>).</p>
+<p><strong>Original dataset</strong> (upstream sources, before this repo):</p>
+<table>
+<thead><tr><th>Dataset</th><th>Format</th><th>Meshes</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>ModelNet40</td><td>OFF</td><td>12,311</td><td>Count from CSV</td></tr>
+<tr><td>ModelNet40_auto_aligned</td><td>OFF</td><td>12,311</td><td></td></tr>
+<tr><td>ModelNet40_manually_aligned</td><td>OFF</td><td>12,311</td><td></td></tr>
+<tr><td>ShapeNetCore</td><td>OBJ</td><td>52,472</td><td>Count from original files</td></tr>
+</tbody>
+</table>
+<p><strong>Raw datasets</strong> (<code>../tin_exp/datasets_raw/&lt;name&gt;/</code>):</p>
+<table>
+<thead><tr><th>Dataset</th><th>Format</th><th>Meshes</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>ModelNet40</td><td>PLY</td><td>9,449</td><td><code>metadata.txt</code>: filename, category, #v, #f, …</td></tr>
+<tr><td>ModelNet40_auto_aligned</td><td>PLY</td><td>12,311</td><td><code>metadata.txt</code>: filename, category, #v, #f, …</td></tr>
+<tr><td>ModelNet40_manually_aligned</td><td>PLY</td><td>12,311</td><td><code>metadata.txt</code>: filename, category, #v, #f, …</td></tr>
+<tr><td>ShapeNetCore</td><td>PLY</td><td>51,209</td><td>52,472 entries in <code>metadata.txt</code> (filename, category, #v, #f, …)</td></tr>
+</tbody>
+</table>
+<p><strong>Per-dataset layout</strong> (<code>../tin_exp/&lt;dataset&gt;/</code>):</p>
+<table>
+<thead><tr><th>Subfolder</th><th>Contents</th></tr></thead>
+<tbody>
+<tr><td><code>norm/</code></td><td>Normalized <code>.ply</code> (zero-mean translation only)</td></tr>
+<tr><td><code>norm_pack/</code></td><td><code>merged_*.tinply</code> + <code>ply_merge_manifest.txt</code></td></tr>
+<tr><td><code>norm_rs/</code></td><td><code>merged_*.tinrs</code> + <code>rs_merge_manifest.txt</code></td></tr>
+<tr><td><code>norm_kd/</code></td><td>KD indexes (optional; not used by PD today)</td></tr>
+<tr><td><code>norm_ptsample_&lt;N&gt;/</code></td><td>Sampled point-cloud <code>.ply</code> files</td></tr>
+<tr><td><code>norm_ptsample&lt;N&gt;_pack/</code></td><td>Packed sampled bundles + manifest</td></tr>
+<tr><td><code>norm_ptsample&lt;N&gt;_rs/</code></td><td>R*-tree indexes for sampled packs</td></tr>
+<tr><td><code>norm_pd/</code></td><td><code>pairwise_distances_vertex.txt</code>, <code>pairwise_distances_chamfer_ptsample&lt;N&gt;.txt</code></td></tr>
+</tbody>
+</table>
+<p><strong>Dataset folder names</strong> (small = local default, full = server):</p>
+<table>
+<thead><tr><th>Small (<code>real_First100_*</code>, 100 meshes)</th><th>Full (<code>real_*</code>, all meshes)</th></tr></thead>
+<tbody>
+<tr><td><code>real_First100_ModelNet40</code></td><td><code>real_ModelNet40</code></td></tr>
+<tr><td><code>real_First100_ModelNet40_auto_aligned</code></td><td><code>real_ModelNet40_auto_aligned</code></td></tr>
+<tr><td><code>real_First100_ModelNet40_manually_aligned</code></td><td><code>real_ModelNet40_manually_aligned</code></td></tr>
+<tr><td><code>real_First100_ShapeNetCore</code></td><td><code>real_ShapeNetCore</code></td></tr>
+</tbody>
+</table>
+<p>Synthetic presets use <code>synthetic_&lt;preset&gt;/</code> (e.g. <code>synthetic_objects100_vertices200/</code>). Lists are in <code>scripts/datasets_common.sh</code>.</p>
+<table>
+<thead><tr><th>Script</th><th>Input</th><th>Output</th></tr></thead>
+<tbody>
+<tr><td><code>scripts/normalize_datasets.sh</code></td><td><code>output_synthetic/</code>, <code>datasets_raw/</code></td><td><code>&lt;dataset&gt;/norm/</code></td></tr>
+<tr><td><code>scripts/compress_datasets.sh</code></td><td><code>&lt;dataset&gt;/norm/</code></td><td><code>&lt;dataset&gt;/norm_pack/</code></td></tr>
+<tr><td><code>scripts/build_rs_datasets.sh</code></td><td><code>&lt;dataset&gt;/norm_pack/</code></td><td><code>&lt;dataset&gt;/norm_rs/</code></td></tr>
+<tr><td><code>scripts/build_kd_datasets.sh</code></td><td><code>&lt;dataset&gt;/norm_pack/</code></td><td><code>&lt;dataset&gt;/norm_kd/</code> (optional)</td></tr>
+<tr><td><code>scripts/ptsample_datasets.sh</code></td><td><code>&lt;dataset&gt;/norm/</code></td><td><code>&lt;dataset&gt;/norm_ptsample_&lt;N&gt;/</code></td></tr>
+<tr><td><code>scripts/compress_ptsample_datasets.sh</code></td><td><code>&lt;dataset&gt;/norm_ptsample_&lt;N&gt;/</code></td><td><code>&lt;dataset&gt;/norm_ptsample&lt;N&gt;_pack/</code></td></tr>
+<tr><td><code>scripts/build_rs_ptsample_datasets.sh</code></td><td><code>&lt;dataset&gt;/norm_ptsample&lt;N&gt;_pack/</code></td><td><code>&lt;dataset&gt;/norm_ptsample&lt;N&gt;_rs/</code></td></tr>
+<tr><td><code>scripts/compute_pd_datasets.sh</code></td><td><code>&lt;dataset&gt;/norm_pack/</code>, <code>&lt;dataset&gt;/norm_rs/</code></td><td><code>&lt;dataset&gt;/norm_pd/pairwise_distances_vertex.txt</code></td></tr>
+<tr><td><code>scripts/compute_pd_ptsample_datasets.sh</code></td><td><code>&lt;dataset&gt;/norm_ptsample&lt;N&gt;_pack/</code>, <code>&lt;dataset&gt;/norm_ptsample&lt;N&gt;_rs/</code></td><td><code>&lt;dataset&gt;/norm_pd/pairwise_distances_chamfer_ptsample&lt;N&gt;.txt</code></td></tr>
+</tbody>
+</table>
+<pre><code class="language-bash">./scripts/normalize_datasets.sh          # small (default)
+./scripts/normalize_datasets.sh full
+./scripts/compress_datasets.sh           # after normalize
+./scripts/compress_datasets.sh full
+./scripts/build_rs_datasets.sh           # after normalize (default index)
+./scripts/build_rs_datasets.sh full
+./scripts/build_kd_datasets.sh           # optional KD-tree indexes
+./scripts/build_kd_datasets.sh full
+./scripts/ptsample_datasets.sh           # 512, 1024, 2048, and 4096 points per mesh
+./scripts/ptsample_datasets.sh full
+./scripts/compress_ptsample_datasets.sh  # after ptsample
+./scripts/compress_ptsample_datasets.sh full
+./scripts/build_rs_ptsample_datasets.sh  # after compress_ptsample
+./scripts/build_rs_ptsample_datasets.sh full
+./scripts/compute_pd_datasets.sh         # vertex PD after build_rs_datasets
+./scripts/compute_pd_datasets.sh full
+./scripts/compute_pd_ptsample_datasets.sh  # Chamfer PD after build_rs_ptsample
+./scripts/compute_pd_ptsample_datasets.sh full</code></pre>
+<p><code>compress_datasets.sh</code> runs <code>tin_test compress</code> on each <code>&lt;dataset&gt;/norm/</code> and writes bundles under <code>&lt;dataset&gt;/norm_pack/</code> (max 5000 meshes per <code>.tinply</code> bundle).</p>
+<p><code>build_rs_datasets.sh</code> runs <code>tin_test rs --combined</code> on each <code>&lt;dataset&gt;/norm_pack/</code> and writes split bundles under <code>&lt;dataset&gt;/norm_rs/</code>. Run <code>compress_datasets.sh</code> first.</p>
+<p><code>build_kd_datasets.sh</code> runs <code>tin_test kd --combined</code> into <code>&lt;dataset&gt;/norm_kd/</code> (optional; not required for PD). Run <code>compress_datasets.sh</code> first.</p>
+<p><code>ptsample_datasets.sh</code> runs <code>tin_test ptsample</code> on each dataset's normalized per-mesh PLY files for 512, 1024, 2048, and 4096 points per mesh. It writes <code>&lt;dataset&gt;/norm_ptsample_512/</code>, <code>&lt;dataset&gt;/norm_ptsample_1024/</code>, <code>&lt;dataset&gt;/norm_ptsample_2048/</code>, and <code>&lt;dataset&gt;/norm_ptsample_4096/</code>.</p>
+<p><code>compress_ptsample_datasets.sh</code> runs <code>tin_test compress</code> on each <code>norm_ptsample_&lt;N&gt;/</code> folder and writes packs under <code>norm_ptsample&lt;N&gt;_pack/</code>. Run <code>ptsample_datasets.sh</code> first.</p>
+<p><code>build_rs_ptsample_datasets.sh</code> runs <code>tin_test rs --combined</code> on each <code>norm_ptsample&lt;N&gt;_pack/</code> and writes indexes under <code>norm_ptsample&lt;N&gt;_rs/</code>. Run <code>compress_ptsample_datasets.sh</code> first.</p>
+<p><code>compute_pd_datasets.sh</code> runs <code>tin_test pd --algorithm vertex --rs-dir &lt;dataset&gt;/norm_rs</code> on each packed dataset (<code>vertex</code> = TIN-vertex RMS). <strong>Small</strong> mode: synthetic presets + <code>real_First100_*</code> datasets; <strong>full</strong> mode: all presets + <code>real_*</code> datasets. Run <code>compress_datasets.sh</code> and <code>build_rs_datasets.sh</code> first.</p>
+<p><code>compute_pd_ptsample_datasets.sh</code> runs <code>tin_test pd --algorithm chamfer</code> on each <code>norm_ptsample&lt;N&gt;_pack</code> with matching <code>norm_ptsample&lt;N&gt;_rs</code> for N in {512, 1024, 2048, 4096}, writing <code>norm_pd/pairwise_distances_chamfer_ptsample&lt;N&gt;.txt</code>. Run <code>ptsample_datasets.sh</code> → <code>compress_ptsample_datasets.sh</code> → <code>build_rs_ptsample_datasets.sh</code> first. Experiments that need a single fixed resolution should use <strong>N=4096</strong>.</p>
+<h2 id="synthetic-datasets-script">Synthetic datasets script</h2>
+<p><code>scripts/generate_synthetic_datasets.sh</code> writes PLY meshes under <code>output_synthetic/</code>. It uses <code>build/release/tin_test</code> if present, otherwise <code>build/debug</code>.</p>
+<pre><code class="language-bash">./scripts/generate_synthetic_datasets.sh          # small preset (~15 MB)
+./scripts/generate_synthetic_datasets.sh full     # large preset (~0.42 GB, slower)</code></pre>
+<p>On <strong>csh/tcsh</strong>, pick the binary with <code>setenv</code> (not <code>VAR=value command</code>):</p>
+<pre><code class="language-csh">setenv TIN_TEST_BIN build/release/tin_test
+./scripts/generate_synthetic_datasets.sh</code></pre>
+<h3 id="small-preset-default">Small preset (default)</h3>
+<table>
+<thead><tr><th>Folder</th><th>Objects</th><th>Vertices/object</th></tr></thead>
+<tbody>
+<tr><td><code>output_synthetic/objects100_vertices200</code></td><td>100</td><td>200</td></tr>
+<tr><td><code>output_synthetic/objects1000_vertices200</code></td><td>1000</td><td>200</td></tr>
+<tr><td><code>output_synthetic/objects100_vertices500</code></td><td>100</td><td>500</td></tr>
+</tbody>
+</table>
+<h3 id="full-preset-full">Full preset (<code>full</code>)</h3>
+<p>Six datasets: object counts <strong>100, 1000, 10000</strong> × hull vertices <strong>200</strong> and <strong>500</strong>.</p>
+<table>
+<thead><tr><th>Objects</th><th>@ 200 v</th><th>@ 500 v</th><th>Subtotal</th></tr></thead>
+<tbody>
+<tr><td>100</td><td>~1.1 MB</td><td>~2.7 MB</td><td>~4 MB</td></tr>
+<tr><td>1,000</td><td>~11 MB</td><td>~27 MB</td><td>~38 MB</td></tr>
+<tr><td>10,000</td><td>~110 MB</td><td>~270 MB</td><td>~380 MB</td></tr>
+</tbody>
+</table>
+<p><strong>Total ~0.42 GB</strong> (ASCII PLY, ~11 KB/mesh @ 200 v, ~27 KB @ 500 v).</p>
+<h2 id="logging">Logging</h2>
+<p>Long runs (<code>generate</code>, <code>normalize</code>, <code>build_kd</code>, etc.) are often started from <strong>bash</strong> or <strong>tcsh</strong>. Syntax differs; using bash-style redirects in tcsh causes errors such as <code>Ambiguous output redirect</code> or <code>Command not found</code>.</p>
+<p>Create the log directory first if needed, e.g. <code>mkdir -p output_synthetic</code>.</p>
+<h3 id="bash-sh">bash / sh</h3>
+<table>
+<thead><tr><th>Goal</th><th>How</th></tr></thead>
+<tbody>
+<tr><td><strong>Log only</strong> (nothing on screen)</td><td><code>command &gt; logfile 2&gt;&amp;1</code> or <code>command &amp;&gt; logfile</code></td></tr>
+<tr><td><strong>Log + screen</strong></td><td>`command 2>&1 \</td><td>tee logfile`</td></tr>
+</tbody>
+</table>
+<p><strong><code>generate_synthetic_datasets.sh</code></strong> (built-in flags; preferred for that script):</p>
+<pre><code class="language-bash"># log only
+./scripts/generate_synthetic_datasets.sh --log-only output_synthetic/generation.log
+./scripts/generate_synthetic_datasets.sh --log-only output_synthetic/generation_full.log full
+
+# log + screen
+./scripts/generate_synthetic_datasets.sh --log output_synthetic/generation.log
+./scripts/generate_synthetic_datasets.sh -l output_synthetic/generation_full.log full</code></pre>
+<p>Same as <code>--log</code>: <code>LOG_FILE=path ./scripts/generate_synthetic_datasets.sh</code> (bash/sh only).</p>
+<p><strong>Other bash scripts</strong> (<code>normalize_datasets.sh</code>, <code>build_kd_datasets.sh</code>) — no <code>--log</code> flags; use redirects:</p>
+<pre><code class="language-bash">./scripts/normalize_datasets.sh full &gt; ../tin_exp/normalize.log 2&gt;&amp;1
+./scripts/build_kd_datasets.sh full 2&gt;&amp;1 | tee ../tin_exp/build_kd.log</code></pre>
+<p><strong>Single <code>tin_test</code> command:</strong></p>
+<pre><code class="language-bash">./build/release/tin_test kd -i sample_normalized -o /tmp/kd_out 2&gt;&amp;1 | tee kd.log
+./build/release/tin_test gen --num-objects 10 --seed 42 &gt; run.log 2&gt;&amp;1</code></pre>
+<p>Append instead of overwrite: <code>&gt;&gt; logfile 2&gt;&amp;1</code> or <code>2&gt;&amp;1 | tee -a logfile</code>.</p>
+<h3 id="tcsh-csh">tcsh / csh</h3>
+<p>Do <strong>not</strong> use <code>VAR=value command</code>, <code>2&gt;&amp;1</code>, or <code>| tee</code> in tcsh for these jobs.</p>
+<table>
+<thead><tr><th>Goal</th><th>How</th></tr></thead>
+<tbody>
+<tr><td><strong>Log only</strong></td><td><code>command &gt;&amp; logfile</code></td></tr>
+<tr><td><strong>Log + screen</strong></td><td>Use a script’s <code>--log</code> flag (see below), or run one bash line: `bash -c 'command 2>&1 \</td><td>tee logfile'`</td></tr>
+</tbody>
+</table>
+<p><strong><code>generate_synthetic_datasets.sh</code></strong> — <code>--log</code> / <code>--log-only</code> work from tcsh (the script is bash; it handles logging internally):</p>
+<pre><code class="language-csh"># log only
+./scripts/generate_synthetic_datasets.sh --log-only output_synthetic/generation.log
+./scripts/generate_synthetic_datasets.sh --log-only output_synthetic/generation_full.log full
+
+# log + screen
+./scripts/generate_synthetic_datasets.sh --log output_synthetic/generation.log</code></pre>
+<p><strong>Other scripts</strong> (<code>normalize_datasets.sh</code>, <code>build_kd_datasets.sh</code>) — log only via <code>&gt;&amp;</code>:</p>
+<pre><code class="language-csh">./scripts/normalize_datasets.sh full &gt;&amp; ../tin_exp/normalize.log
+./scripts/build_kd_datasets.sh full &gt;&amp; ../tin_exp/build_kd.log</code></pre>
+<p>For <strong>log + screen</strong> on those scripts, either use bash:</p>
+<pre><code class="language-csh">bash -c './scripts/build_kd_datasets.sh full 2&gt;&amp;1 | tee ../tin_exp/build_kd.log'</code></pre>
+<p>or log only with <code>&gt;&amp;</code> and watch with <code>tail -f ../tin_exp/build_kd.log</code> in another window.</p>
+<p><strong>Single <code>tin_test</code> command:</strong></p>
+<pre><code class="language-csh">./build/release/tin_test kd -i sample_normalized -o /tmp/kd_out &gt;&amp; kd.log</code></pre>
+<p><strong>Environment variables</strong> — set before the command, not inline:</p>
+<pre><code class="language-csh">setenv TIN_TEST_BIN /path/to/tin_test/build/release/tin_test
+./scripts/build_kd_datasets.sh full &gt;&amp; build_kd.log</code></pre>
+<p>Append instead of overwrite: <code>command &gt;&gt;&amp; logfile</code>.</p>
+<h2 id="c-api">C++ API</h2>
+<pre><code class="language-cpp">#include "tin_gen/generator.hpp"
+
+auto meshes = tin_gen::generate_random_tin(
+    num_objects, num_vertices_per_object, scale, seed);
+tin_gen::save_objects_as_files(meshes, output_dir, tin_gen::MeshFormat::Ply);</code></pre>
+<p>Surface samples can be generated uniformly across a TIN's faces:</p>
+<pre><code class="language-cpp">#include "tin_gen/face_sampling.hpp"
+
+auto samples = tin_gen::sample_points_on_faces(mesh, num_points, seed);</code></pre>
+<p>The requested total number of points is returned. Faces are selected proportionally to area, and each selected face is sampled uniformly using barycentric coordinates. A seed of <code>0</code> uses non-deterministic seeding.</p>
+<p>Exact hull vertex counts use <code>src/convex_hull_vertices.cpp</code> (grow/prune point set, Qhull for hull geometry, TriMesh2 to orient and validate).</p>
+<blockquote><p>Uniform random points in a 3D box yield only ~<code>N^(2/3)</code> hull vertices, so iterative adjustment is used for an exact count. Large <code>N</code> is slower than a single hull pass.</p></blockquote>
+<h2 id="tests">Tests</h2>
+<pre><code class="language-bash">ctest --preset debug -R tin_test_smoke</code></pre>
+<p>Only <code>tin_test</code> tests are registered (Qhull is built as two static libraries, not its full app/test suite).</p>
+<h2 id="project-layout">Project layout</h2>
+<pre><code class="language-text">include/tin_gen/                 # public API
+src/main.cpp                     # entry point
+src/app.cpp                      # CLI commands
+src/commands/generate.cpp
+src/backends/generator.cpp       # TriMesh2 + Qhull generation
+src/face_sampling.cpp            # uniform surface sampling on TIN faces
+src/convex_hull_vertices.cpp     # exact vertex-count point set
+src/convex_hull_3d.cpp           # Qhull hull mesh
+cmake/fetch_trimesh2.cmake       # FetchContent → third_party/trimesh2
+cmake/find_qhull.cmake           # fetch sources → third_party/qhull
+cmake/qhull_vendor/              # build qhullstatic_r + qhullcpp only
+cmake/trimesh2/                  # static TriMesh2 library target
+scripts/generate_synthetic_datasets.sh
+scripts/ptsample_datasets.sh
+scripts/compress_ptsample_datasets.sh
+scripts/build_rs_ptsample_datasets.sh
+scripts/compute_pd_ptsample_datasets.sh
+third_party/trimesh2/            # created at configure (gitignored)
+third_party/qhull/               # created at configure (gitignored)</code></pre>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<table>
+<thead><tr><th>Problem</th><th>What to do</th></tr></thead>
+<tbody>
+<tr><td><code>Unrecognized "version" field</code> (presets)</td><td>Upgrade CMake to ≥ 3.21</td></tr>
+<tr><td><code>Could not use disabled preset "debug"</code> on Linux</td><td>Pull latest <code>CMakePresets.json</code> (mac-only preset removed)</td></tr>
+<tr><td><code>TriMesh.h</code> / <code>libqhullcpp/...</code> not found</td><td>Run <code>cmake</code> from a clean build dir so fetch scripts run</td></tr>
+<tr><td>Git fetch fails on server</td><td>Copy <code>third_party/trimesh2</code> and <code>third_party/qhull</code> from another machine</td></tr>
+<tr><td>Very slow generation</td><td>Use <strong>Release</strong> build and <code>--quiet</code>; exact vertex counts need many Qhull passes per mesh — 500 vertices is much slower than 200</td></tr>
+<tr><td><code>Nonrepresentable section on output</code> linking Qhull</td><td>Pull latest CMake: only Qhull <strong>libraries</strong> are built (not <code>user_eg3</code> / CLI tools)</td></tr>
+<tr><td>Qhull <code>QhullLinkedList</code> / <code>template-id not allowed for destructor</code> on Linux GCC</td><td>Qhull 8.0.2 + C++20; pull latest (auto-patches Qhull headers) or re-run <code>cmake</code> after <code>rm -rf third_party/qhull build/release</code></td></tr>
+<tr><td><code>Ambiguous output redirect</code> with <code>tee</code></td><td>You are in tcsh: use <code>&gt;&amp;</code> or <code>--log</code> / <code>--log-only</code>; see <a href="#logging">Logging</a></td></tr>
+<tr><td><code>LOG_FILE=...: Command not found</code></td><td>tcsh: use <code>--log PATH</code> on <code>generate_synthetic_datasets.sh</code>, or <code>setenv LOG_FILE PATH</code> then run it from bash</td></tr>
+</tbody>
+</table>
+</main>
+</body>
+</html>
